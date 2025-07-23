@@ -1,0 +1,43 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go build command
+/gofs
+/cmd/gofs/gofs
+
+# Go workspace file
+go.work
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Config files (except examples)
+config.yaml
+config.yml
+config.json
+
+# Build artifacts
+/dist/
+/build/
+
+# Node modules for web frontend
+web/node_modules/
+web/dist/
+web/.env
