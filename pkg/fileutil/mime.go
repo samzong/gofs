@@ -8,25 +8,78 @@ import (
 )
 
 // DetectMimeType determines the MIME type of a file based on its extension.
-// It first tries the standard library's mime package, then falls back to custom mappings.
+// It uses a comprehensive mapping to ensure consistent results across platforms.
 func DetectMimeType(filename string) string {
 	ext := strings.ToLower(filepath.Ext(filename))
-	if mimeType := mime.TypeByExtension(ext); mimeType != "" {
+
+	// Comprehensive MIME type mappings to ensure consistency across platforms
+	mimeTypes := map[string]string{
+		// Web files
+		".html": "text/html; charset=utf-8",
+		".htm":  "text/html; charset=utf-8",
+		".css":  "text/css; charset=utf-8",
+		".js":   "text/javascript; charset=utf-8",
+		".json": "application/json",
+		".xml":  "application/xml",
+
+		// Images
+		".png":  "image/png",
+		".jpg":  "image/jpeg",
+		".jpeg": "image/jpeg",
+		".gif":  "image/gif",
+		".svg":  "image/svg+xml",
+		".webp": "image/webp",
+		".ico":  "image/x-icon",
+
+		// Documents
+		".pdf": "application/pdf",
+		".txt": "text/plain; charset=utf-8",
+		".md":  "text/markdown",
+		".rtf": "application/rtf",
+
+		// Archives
+		".zip": "application/zip",
+		".tar": "application/x-tar",
+		".gz":  "application/gzip",
+		".rar": "application/x-rar-compressed",
+
+		// Config files
+		".yaml": "application/x-yaml",
+		".yml":  "application/x-yaml",
+		".toml": "application/toml",
+		".ini":  "text/plain; charset=utf-8",
+		".conf": "text/plain; charset=utf-8",
+		".cfg":  "text/plain; charset=utf-8",
+		".log":  "text/plain; charset=utf-8",
+
+		// Programming languages
+		".go":   "text/plain; charset=utf-8",
+		".py":   "text/plain; charset=utf-8",
+		".java": "text/plain; charset=utf-8",
+		".c":    "text/plain; charset=utf-8",
+		".cpp":  "text/plain; charset=utf-8",
+		".h":    "text/plain; charset=utf-8",
+		".sh":   "text/plain; charset=utf-8",
+
+		// Audio
+		".mp3":  "audio/mpeg",
+		".wav":  "audio/wav",
+		".ogg":  "audio/ogg",
+		".flac": "audio/flac",
+
+		// Video
+		".mp4":  "video/mp4",
+		".avi":  "video/x-msvideo",
+		".mov":  "video/quicktime",
+		".webm": "video/webm",
+	}
+
+	if mimeType, exists := mimeTypes[ext]; exists {
 		return mimeType
 	}
 
-	// Custom MIME type mappings for common file types not covered by stdlib
-	customTypes := map[string]string{
-		".md":   "text/markdown",
-		".yaml": "application/x-yaml",
-		".yml":  "application/x-yaml",
-		".log":  "text/plain",
-		".conf": "text/plain",
-		".cfg":  "text/plain",
-		".ini":  "text/plain",
-	}
-
-	if mimeType, exists := customTypes[ext]; exists {
+	// Fallback to standard library for any types we might have missed
+	if mimeType := mime.TypeByExtension(ext); mimeType != "" {
 		return mimeType
 	}
 

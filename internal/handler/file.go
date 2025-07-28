@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -104,7 +105,7 @@ func (h *File) handleFile(w http.ResponseWriter, _ *http.Request, path string) {
 		return
 	}
 	defer func() {
-		_ = file.Close() // nolint:errcheck // Ignore close error in defer
+		_ = file.Close()
 	}()
 
 	// Get file info for size and security checks
@@ -134,7 +135,7 @@ func (h *File) handleFile(w http.ResponseWriter, _ *http.Request, path string) {
 	w.Header().Set("Content-Type", mimeType)
 
 	// Set content length for better client handling
-	w.Header().Set("Content-Length", fmt.Sprintf("%d", info.Size()))
+	w.Header().Set("Content-Length", strconv.FormatInt(info.Size(), 10))
 
 	// Enterprise optimization: Use buffered copy for large files
 	if info.Size() > 1<<20 { // 1MB threshold

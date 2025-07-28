@@ -20,17 +20,12 @@ jobs:
       with:
         go-version: '1.24'
         cache: true
-        
-    - name: Install dependencies
-      run: |
-        # Install goimports
-        go install golang.org/x/tools/cmd/goimports@latest
 
-    - name: Download Go modules
-      run: go mod download
-      
     - name: Run quality checks
       uses: golangci/golangci-lint-action@v8.0.0
+    
+    - name: Run unit tests
+      run: make test
 
   # Build and release for tags
   release:
@@ -48,9 +43,6 @@ jobs:
       with:
         go-version: '1.24'
         cache: true
-        
-    - name: Download Go modules
-      run: go mod download
       
     - name: Build all platforms
       run: make build-all
