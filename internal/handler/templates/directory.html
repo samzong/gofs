@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>📁 {{.Path}} - gofs</title>
+	<style>{{.CSS}}</style>
+</head>
+<body>
+	<div class="container">
+		<div class="header">
+			<div class="path">{{.Path}}</div>
+		</div>
+		<div class="file-list">
+			{{if .Parent}}
+			<a href="../" class="file-item parent">
+				<div class="file-icon">📁</div>
+				<div class="file-info">
+					<span class="file-name">..</span>
+				</div>
+			</a>
+			{{end}}
+			{{range .Files}}
+			<a href="{{.Name}}{{if .IsDir}}/{{end}}" class="file-item">
+				<div class="file-icon">{{if .IsDir}}📁{{else}}📄{{end}}</div>
+				<div class="file-info">
+					<span class="file-name">{{.Name}}</span>
+					{{if not .IsDir}}<span class="file-size">{{.Size}}</span>{{end}}
+				</div>
+			</a>
+			{{else}}
+			<div class="empty">empty</div>
+			{{end}}
+		</div>
+	</div>
+</body>
+</html>

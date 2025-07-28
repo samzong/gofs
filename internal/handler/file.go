@@ -15,6 +15,7 @@ import (
 
 	"github.com/samzong/gofs/internal"
 	"github.com/samzong/gofs/internal/config"
+	"github.com/samzong/gofs/internal/handler/templates"
 	"github.com/samzong/gofs/pkg/fileutil"
 )
 
@@ -201,27 +202,6 @@ func (h *File) renderJSON(w http.ResponseWriter, path string, files []internal.F
 
 // renderHTML renders the file listing as HTML for browser viewing.
 func (h *File) renderHTML(w http.ResponseWriter, path string, files []internal.FileInfo) {
-	const htmlTemplate = `<!DOCTYPE html>
-<html>
-<head>
-	<title>{{.Path}}</title>
-</head>
-<body>
-	<h1>{{.Path}}</h1>
-	<ul>
-		{{if .Parent}}<li><a href="../">📁 ..</a></li>{{end}}
-		{{range .Files}}
-		<li>
-			<a href="{{.Name}}{{if .IsDir}}/{{end}}">
-				{{if .IsDir}}📁{{else}}📄{{end}} {{.Name}}
-			</a>
-			{{if not .IsDir}} ({{.Size}}){{end}}
-		</li>
-		{{end}}
-	</ul>
-</body>
-</html>`
-
 	type FileItem struct {
 		Name  string
 		Size  string
@@ -245,20 +225,18 @@ func (h *File) renderHTML(w http.ResponseWriter, path string, files []internal.F
 		Path   string
 		Files  []FileItem
 		Parent bool
+		CSS    template.CSS // Inject CSS styles as safe CSS type
 	}{
 		Path:   "/" + path,
 		Parent: path != "",
 		Files:  items,
-	}
-
-	tmpl, err := template.New("files").Parse(htmlTemplate)
-	if err != nil {
-		http.Error(w, "Template error", http.StatusInternalServerError)
-		return
+		CSS:    template.CSS(templates.StylesCSS), // Convert to template.CSS to bypass XSS protection
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := tmpl.Execute(w, data); err != nil {
+
+	// Use pre-compiled template for better performance
+	if err := templates.DirectoryTemplate.Execute(w, data); err != nil {
 		http.Error(w, "Template execution error", http.StatusInternalServerError)
 		return
 	}
