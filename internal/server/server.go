@@ -46,8 +46,8 @@ func (s *Server) Start() error {
 	s.server = &http.Server{
 		Addr:         addr,
 		Handler:      s.handler,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 30 * time.Second,
+		ReadTimeout:  time.Duration(s.config.RequestTimeout) * time.Second,
+		WriteTimeout: time.Duration(s.config.RequestTimeout) * time.Second,
 		IdleTimeout:  120 * time.Second,
 		BaseContext: func(net.Listener) context.Context {
 			return ctx

@@ -14,17 +14,22 @@ import (
 	"time"
 
 	"github.com/samzong/gofs/internal"
+	"github.com/samzong/gofs/internal/config"
 	"github.com/samzong/gofs/pkg/fileutil"
 )
 
 // File implements HTTP request handling for file system operations.
 type File struct {
-	fs internal.FileSystem
+	fs     internal.FileSystem
+	config *config.Config
 }
 
-// NewFile creates a new file handler with the given file system.
-func NewFile(fs internal.FileSystem) *File {
-	return &File{fs: fs}
+// NewFile creates a new file handler with the given file system and configuration.
+func NewFile(fs internal.FileSystem, cfg *config.Config) *File {
+	return &File{
+		fs:     fs,
+		config: cfg,
+	}
 }
 
 // ServeHTTP handles incoming HTTP requests for file operations.
@@ -105,7 +110,11 @@ func (h *File) handleFile(w http.ResponseWriter, _ *http.Request, path string) {
 		return
 	}
 	defer func() {
-		_ = file.Close()
+		if closeErr := file.Close(); closeErr != nil {
+			// Log error but don't fail the request as data may have been sent
+			// In production, this should use structured logging
+			fmt.Printf("Warning: Failed to close file %s: %v\n", path, closeErr)
+		}
 	}()
 
 	// Get file info for size and security checks
@@ -116,8 +125,7 @@ func (h *File) handleFile(w http.ResponseWriter, _ *http.Request, path string) {
 	}
 
 	// Enterprise security: Check file size limit (prevent DoS)
-	const maxFileSize = 100 << 20 // 100MB limit
-	if info.Size() > maxFileSize {
+	if info.Size() > h.config.MaxFileSize {
 		http.Error(w, "File too large", http.StatusRequestEntityTooLarge)
 		return
 	}
@@ -125,6 +133,13 @@ func (h *File) handleFile(w http.ResponseWriter, _ *http.Request, path string) {
 	// Set security headers
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("X-Frame-Options", "DENY")
+	w.Header().Set("X-XSS-Protection", "1; mode=block")
+	w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+
+	// Add Content Security Policy for enhanced security
+	if h.config.EnableSecurity {
+		w.Header().Set("Content-Security-Policy", "default-src 'self'")
+	}
 
 	// Set filename in Content-Disposition header with proper escaping
 	filename := filepath.Base(path)

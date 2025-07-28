@@ -69,7 +69,7 @@ func main() {
 	}
 
 	fs := filesystem.NewLocal(cfg.Dir)
-	fileHandler := handler.NewFile(fs)
+	fileHandler := handler.NewFile(fs, cfg)
 	srv := server.New(cfg, fileHandler)
 
 	go func() {

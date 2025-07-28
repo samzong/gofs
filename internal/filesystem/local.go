@@ -2,8 +2,8 @@
 package filesystem
 
 import (
-	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -38,7 +38,11 @@ func (fs *Local) Open(name string) (io.ReadCloser, error) {
 	// #nosec G304 - path is validated by safePath function
 	file, err := os.Open(fullPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open file %q: %w", fullPath, err)
+		return nil, &internal.APIError{
+			Code:    "FILE_ACCESS_ERROR",
+			Message: "Unable to access requested file",
+			Status:  http.StatusNotFound,
+		}
 	}
 	return file, nil
 }
@@ -52,7 +56,11 @@ func (fs *Local) Stat(name string) (internal.FileInfo, error) {
 
 	info, err := os.Stat(fullPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to stat file %q: %w", fullPath, err)
+		return nil, &internal.APIError{
+			Code:    "FILE_STAT_ERROR",
+			Message: "Unable to get file information",
+			Status:  http.StatusNotFound,
+		}
 	}
 
 	return &localFileInfo{FileInfo: info}, nil
@@ -67,7 +75,11 @@ func (fs *Local) ReadDir(name string) ([]internal.FileInfo, error) {
 
 	entries, err := os.ReadDir(fullPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read directory %q: %w", fullPath, err)
+		return nil, &internal.APIError{
+			Code:    "DIRECTORY_READ_ERROR",
+			Message: "Unable to read directory contents",
+			Status:  http.StatusForbidden,
+		}
 	}
 
 	result := make([]internal.FileInfo, 0, len(entries))
@@ -83,6 +95,7 @@ func (fs *Local) ReadDir(name string) ([]internal.FileInfo, error) {
 }
 
 // safePath ensures the path is safe and prevents directory traversal attacks.
+// It also prevents symlink attacks by ensuring symlinks don't point outside the root.
 func (fs *Local) safePath(name string) (string, error) {
 	if name == "" {
 		name = "."
@@ -102,6 +115,23 @@ func (fs *Local) safePath(name string) (string, error) {
 		return "", &internal.APIError{
 			Code:    "INVALID_PATH",
 			Message: "Path outside of root directory",
+		}
+	}
+
+	// Security: Check for symlink attacks
+	if info, err := os.Lstat(fullPath); err == nil {
+		if info.Mode()&os.ModeSymlink != 0 {
+			// Resolve the symlink and ensure it points within the root
+			if resolved, resolveErr := filepath.EvalSymlinks(fullPath); resolveErr == nil {
+				// Clean the resolved path and ensure it's still within root
+				resolved = filepath.Clean(resolved)
+				if !strings.HasPrefix(resolved, fs.root) {
+					return "", &internal.APIError{
+						Code:    "SYMLINK_ATTACK",
+						Message: "Symlink points outside root directory",
+					}
+				}
+			}
 		}
 	}
 
