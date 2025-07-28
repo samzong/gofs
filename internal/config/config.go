@@ -9,12 +9,12 @@ import (
 
 // Config holds the server configuration.
 type Config struct {
-	Port           int    // Port to listen on
-	Host           string // Host address to bind to
-	Dir            string // Root directory to serve files from
-	MaxFileSize    int64  // Maximum file size to serve (bytes)
-	RequestTimeout int    // Request timeout in seconds
-	EnableSecurity bool   // Enable additional security headers
+	Host           string
+	Dir            string
+	Port           int
+	MaxFileSize    int64
+	RequestTimeout int
+	EnableSecurity bool
 }
 
 // New creates a new configuration with the provided values.

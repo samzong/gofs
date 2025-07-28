@@ -37,10 +37,10 @@ type FileInfo interface {
 
 // APIError represents a structured error response for API operations.
 type APIError struct {
-	Code    string `json:"code"`              // Error code for programmatic handling
-	Message string `json:"message"`           // Human-readable error message
-	Details any    `json:"details,omitempty"` // Additional error details
-	Status  int    `json:"-"`                 // HTTP status code (not serialized)
+	Details any    `json:"details,omitempty"`
+	Code    string `json:"code"`
+	Message string `json:"message"`
+	Status  int    `json:"-"`
 }
 
 // Error implements the error interface for APIError.

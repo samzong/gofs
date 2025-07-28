@@ -1,0 +1,321 @@
+version: "2"
+
+run:
+  timeout: 5m
+  issues-exit-code: 1
+  tests: true
+  modules-download-mode: readonly
+  skip-files:
+    - ".*\\.pb\\.go$"
+    - ".*\\.gen\\.go$"
+    - ".*\\.mock\\.go$"
+
+output:
+  format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true
+  uniq-by-line: true
+  sort-results: true
+
+linters:
+  # 使用标准的默认 linters 集合
+  default: standard
+  enable:
+    # 基础错误检查
+    - errcheck        # 检查错误处理
+    - govet           # go vet 检查
+    - ineffassign     # 检查无效赋值
+    - staticcheck     # 静态分析检查
+    - unused          # 检查未使用的代码
+    
+    # 代码风格和格式化
+    - whitespace      # 空白字符检查
+    - misspell        # 拼写错误检查
+    - unconvert       # 不必要类型转换检查
+    
+    # 复杂度检查
+    - cyclop          # 圈复杂度检查 (替代 gocyclo)
+    - funlen          # 函数长度检查
+    - lll             # 行长度检查
+    
+    # 安全检查
+    - gosec           # 安全检查
+    
+    # 性能优化
+    - prealloc        # 预分配切片检查
+    - goconst         # 常量检查
+    
+    # 错误处理最佳实践
+    - errorlint       # 错误处理最佳实践
+    - wrapcheck       # 错误包装检查
+    - nilerr          # 检查 nil 错误返回
+    
+    # Go 1.24 新特性支持
+    - copyloopvar     # 检查循环变量复制问题 (Go 1.22+)
+    
+    # 代码质量
+    - gocritic        # Go 代码评论工具
+    - revive          # Go 代码审查工具 (替代 golint)
+    - unparam         # 检查未使用的参数
+    - bodyclose       # HTTP response body 关闭检查
+    - contextcheck    # context 使用检查
+    - rowserrcheck    # SQL rows.Err() 检查
+    - sqlclosecheck   # SQL Close() 检查
+    
+    # 测试相关
+    - testifylint     # testify 使用检查
+    - thelper         # 测试辅助函数检查
+    
+  settings:
+    # 错误检查设置
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+      exclude-functions:
+        - fmt.Print
+        - fmt.Printf
+        - fmt.Println
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        
+    # go vet 设置
+    govet:
+      check-shadowing: true
+      enable:
+        - atomicalign
+        - deepequalerrors
+        - fieldalignment
+        - findcall
+        - nilness
+        - reflectvaluecompare
+        - shadow
+        - sortslice
+        - timeformat
+        - unusedwrite
+    
+      
+    # 常量检查设置
+    goconst:
+      min-len: 3
+      min-occurrences: 3
+      match-constant: true
+      numbers: true
+      ignore-tests: true
+      
+    # 代码评论设置
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - performance
+        - style
+        - experimental
+      disabled-checks:
+        - ifElseChain
+        - singleCaseSwitch
+        - unnamedResult
+        
+    # 圈复杂度设置
+    cyclop:
+      max-complexity: 15
+      package-average: 10.0
+      skip-tests: true
+      
+    # 函数长度设置
+    funlen:
+      lines: 80
+      statements: 50
+      ignore-comments: true
+      
+    # 安全检查设置
+    gosec:
+      severity: medium
+      confidence: medium
+      excludes:
+        - G101 # 硬编码凭据检查 (开发阶段放松)
+        - G404 # 弱随机数生成器 (测试中使用)
+    
+    # 行长度设置
+    lll:
+      line-length: 120
+      tab-width: 4
+      
+    # 拼写检查设置
+    misspell:
+      locale: US
+      ignore-words:
+        - iframe
+        - auth
+        - uuid
+        
+    # 预分配检查设置
+    prealloc:
+      simple: true
+      range-loops: true
+      for-loops: false
+      
+    # 错误包装检查设置
+    wrapcheck:
+      ignorePkgs:
+        - github.com/pkg/errors
+        - github.com/gin-gonic/gin
+      ignoreSigs:
+        - .Errorf(
+        - errors.New(
+        - errors.Unwrap(
+        - errors.Join(
+        
+    # Revive 设置
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: exported
+          arguments: ["checkPrivateReceivers", "sayRepetitiveInsteadOfStutters"]
+        - name: if-return
+        - name: increment-decrement
+        - name: var-naming
+        - name: var-declaration
+        - name: package-comments
+          disabled: true  # 对于小项目可以禁用包注释要求
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: unexported-return
+        - name: indent-error-flow
+        - name: errorf
+        - name: empty-block
+        - name: unused-parameter
+        - name: unreachable-code
+        - name: redefines-builtin-id
+        
+    # 测试相关设置
+    testifylint:
+      enable:
+        - bool-compare
+        - compares
+        - empty
+        - error-is-as
+        - error-nil
+        - expected-actual
+        - go-require
+        - float-compare
+        - len
+        - nil-compare
+        - require-error
+        - suite-dont-use-pkg
+        - suite-extra-assert-call
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+    - gci
+  settings:
+    gofmt:
+      simplify: true
+      rewrite-rules:
+        - pattern: interface{}
+          replacement: any
+        - pattern: a[b:len(a)]
+          replacement: a[b:]
+    goimports:
+      local-prefixes: iframe-dashboard-backend
+    gci:
+      sections:
+        - standard
+        - default
+        - prefix(iframe-dashboard-backend)
+      skip-generated: true
+      custom-order: true
+
+issues:
+  # 使用默认排除规则，但允许自定义
+  exclude-use-default: true
+  
+  # 最大问题数量，0 表示无限制
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  
+  # 是否只检查新代码
+  new: false
+  
+  # 自定义排除规则
+  exclude-rules:
+    # 测试文件排除规则
+    - path: _test\.go
+      linters:
+        - cyclop         # 测试文件可以有更高的复杂度
+        - funlen         # 测试函数可以更长
+        - lll            # 测试文件行长度可以更长
+        - wrapcheck      # 测试文件错误包装检查放松
+        - errcheck       # 测试中某些错误检查可以放松
+        - gosec          # 测试文件安全检查放松
+        - goconst        # 测试文件常量检查放松
+        
+    # main.go 文件特殊规则
+    - path: main\.go
+      linters:
+        - funlen         # main 函数可以更长
+        - cyclop         # main 函数复杂度可以更高
+        
+    # 排除生成的文件
+    - path: ".*\\.gen\\.go"
+      linters:
+        - all
+        
+    # 排除 mock 文件
+    - path: ".*\\.mock\\.go"
+      linters:
+        - all
+        
+    # 排除 protobuf 生成的文件
+    - path: ".*\\.pb\\.go"
+      linters:
+        - all
+        
+    # 排除常见的误报
+    - text: 'declaration of "err" shadows declaration at'
+      linters:
+        - govet
+        
+    # 排除测试文件中的弱随机数生成器警告
+    - path: _test\.go
+      text: "G404:"
+      linters:
+        - gosec
+        
+    # 排除结构体字段对齐警告（在某些情况下）
+    - text: "fieldalignment:"
+      linters:
+        - govet
+      path: "models.*\\.go"
+
+# 严重性设置
+severity:
+  default: error
+  case-sensitive: false
+  rules:
+    # 将风格检查设为警告级别
+    - linters:
+        - revive
+        - gocritic
+        - misspell
+        - whitespace
+      severity: warning
+    
+    # 将性能检查设为警告级别
+    - linters:
+        - prealloc
+        - goconst
+      severity: warning
+    
+    # 将复杂度检查设为警告级别（但保持 funlen 为错误）
+    - linters:
+        - cyclop
+      severity: warning

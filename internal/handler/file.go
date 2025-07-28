@@ -149,9 +149,9 @@ func (h *File) handleFile(w http.ResponseWriter, r *http.Request, path string) {
 func (h *File) renderJSON(w http.ResponseWriter, path string, files []internal.FileInfo) {
 	type FileItem struct {
 		Name    string `json:"name"`
+		ModTime string `json:"modTime"`
 		Size    int64  `json:"size"`
 		IsDir   bool   `json:"isDir"`
-		ModTime string `json:"modTime"`
 	}
 
 	items := make([]FileItem, 0, len(files))
@@ -164,7 +164,7 @@ func (h *File) renderJSON(w http.ResponseWriter, path string, files []internal.F
 		})
 	}
 
-	response := map[string]interface{}{
+	response := map[string]any{
 		"path":  path,
 		"files": items,
 	}
@@ -184,8 +184,8 @@ func (h *File) renderHTML(w http.ResponseWriter, path string, files []internal.F
 
 	type FileItem struct {
 		Name  string
-		IsDir bool
 		Size  string
+		IsDir bool
 	}
 
 	items := make([]FileItem, 0, len(files))
@@ -203,8 +203,8 @@ func (h *File) renderHTML(w http.ResponseWriter, path string, files []internal.F
 
 	data := struct {
 		Path   string
-		Parent bool
 		Files  []FileItem
+		Parent bool
 	}{
 		Path:   "/" + path,
 		Parent: path != "",

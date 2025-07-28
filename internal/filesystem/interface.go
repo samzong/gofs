@@ -10,12 +10,12 @@ import (
 
 // LocalFileInfo implements the FileInfo interface for local file information.
 type LocalFileInfo struct {
-	name    string
-	size    int64
-	mode    string
 	modTime time.Time
-	isDir   bool
+	name    string
+	mode    string
 	path    string
+	size    int64
+	isDir   bool
 }
 
 // Name returns the file name.

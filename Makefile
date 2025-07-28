@@ -1,44 +1,157 @@
-# Makefile for gofs - A lightweight HTTP file server
+# gofs - Makefile
 
-BINARY_NAME=gofs
-VERSION?=dev
-GIT_COMMIT=$(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
-BUILD_TIME=$(shell date -u '+%Y-%m-%d_%H:%M:%S')
+##@ Project Configuration
+# ------------------------------------------------------------------------------
+PROJECT_NAME := gofs
+VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+BUILD_TIME := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
+GO_VERSION := $(shell go version | awk '{print $$3}')
 
-# Build flags for size optimization
-LDFLAGS=-ldflags "-s -w -X main.Version=${VERSION} -X main.GitCommit=${GIT_COMMIT} -X main.BuildTime=${BUILD_TIME}"
-BUILDFLAGS=-trimpath
+# Binary and build configuration
+BINARY_NAME := $(PROJECT_NAME)
+BUILD_DIR := ./build
 
-.PHONY: build clean test dev help all
+# Platform detection
+HOST_OS := $(shell go env GOOS)
+HOST_ARCH := $(shell go env GOARCH)
 
-## Build optimized binary
-build:
-	@echo "Building ${BINARY_NAME}..."
-	go build ${BUILDFLAGS} ${LDFLAGS} -o ${BINARY_NAME} ./cmd/gofs
+# Go build flags
+LDFLAGS := -ldflags "-X main.version=$(VERSION) -X main.buildTime=$(BUILD_TIME) -X main.goVersion=$(GO_VERSION)"
 
-## Run tests
-test:
-	@echo "Running tests..."
-	go test -v ./...
+# Build targets for different platforms
+PLATFORMS := \
+	linux/amd64 \
+	linux/arm64 \
+	darwin/amd64 \
+	darwin/arm64 \
+	windows/amd64
 
-## Clean build artifacts
-clean:
-	@echo "Cleaning build artifacts..."
-	rm -f ${BINARY_NAME}
-	rm -rf bin/
-	rm -f coverage.out coverage.html
+# Terminal colors for output formatting
+RED := \033[0;31m
+GREEN := \033[0;32m
+YELLOW := \033[0;33m
+BLUE := \033[0;34m
+PURPLE := \033[0;35m
+CYAN := \033[0;36m
+NC := \033[0m
 
-## Start development server
-dev: build
-	@echo "Starting development server..."
-	./${BINARY_NAME} -port 8000 -dir .
+##@ General
+.PHONY: help
+help: ## Display available commands
+	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
-## Show help
-help:
-	@echo "gofs Makefile"
-	@echo ""
-	@echo "Available targets:"
-	@grep -E '^##' Makefile | sed 's/## /  /'
+##@ Development
+.PHONY: fmt
+fmt: ## Format Go code with goimports
+	@echo "$(BLUE)Formatting Go code...$(NC)"
+	@if ! command -v goimports >/dev/null 2>&1; then \
+		echo "$(YELLOW)Installing goimports...$(NC)"; \
+		go install golang.org/x/tools/cmd/goimports@latest; \
+	fi
+	@goimports -w -local $(PROJECT_NAME) .
+	@echo "$(GREEN)Code formatting completed$(NC)"
 
-# Default target
-all: build
+.PHONY: lint
+lint: ## Run golangci-lint code analysis
+	@echo "$(BLUE)Running code analysis...$(NC)"
+	@if ! command -v golangci-lint >/dev/null 2>&1; then \
+		echo "$(YELLOW)Installing golangci-lint...$(NC)"; \
+		curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $$(go env GOPATH)/bin v1.55.2; \
+	fi
+	golangci-lint run
+	@echo "$(GREEN)Code analysis completed$(NC)"
+
+.PHONY: lint-fix
+lint-fix: ## Run golangci-lint with auto-fix
+	@echo "$(BLUE)Running code analysis with auto-fix...$(NC)"
+	@if ! command -v golangci-lint >/dev/null 2>&1; then \
+		echo "$(YELLOW)Installing golangci-lint...$(NC)"; \
+		curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $$(go env GOPATH)/bin v1.55.2; \
+	fi
+	golangci-lint run --fix
+	@echo "$(GREEN)Code analysis and fixes completed$(NC)"
+
+##@ Build
+.PHONY: build
+build: ## Build binary for current platform
+	@echo "$(BLUE)Building Go binary for $(HOST_OS)/$(HOST_ARCH)...$(NC)"
+	@mkdir -p $(BUILD_DIR)
+	@CGO_ENABLED=0 GOOS=$(HOST_OS) GOARCH=$(HOST_ARCH) go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)$(if $(filter windows,$(HOST_OS)),.exe,) ./cmd/gofs
+	@echo "$(GREEN)Build completed: $(BUILD_DIR)/$(BINARY_NAME)$(if $(filter windows,$(HOST_OS)),.exe,)$(NC)"
+
+.PHONY: build-linux
+build-linux: ## Build binary for Linux (amd64)
+	@echo "$(BLUE)Building Go binary for linux/amd64...$(NC)"
+	@mkdir -p $(BUILD_DIR)
+	@CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64 ./cmd/gofs
+	@echo "$(GREEN)Build completed: $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64$(NC)"
+
+.PHONY: build-linux-arm
+build-linux-arm: ## Build binary for Linux (arm64)
+	@echo "$(BLUE)Building Go binary for linux/arm64...$(NC)"
+	@mkdir -p $(BUILD_DIR)
+	@CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-arm64 ./cmd/gofs
+	@echo "$(GREEN)Build completed: $(BUILD_DIR)/$(BINARY_NAME)-linux-arm64$(NC)"
+
+.PHONY: build-darwin
+build-darwin: ## Build binary for macOS (amd64)
+	@echo "$(BLUE)Building Go binary for darwin/amd64...$(NC)"
+	@mkdir -p $(BUILD_DIR)
+	@CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-amd64 ./cmd/gofs
+	@echo "$(GREEN)Build completed: $(BUILD_DIR)/$(BINARY_NAME)-darwin-amd64$(NC)"
+
+.PHONY: build-darwin-arm
+build-darwin-arm: ## Build binary for macOS (arm64/M1)
+	@echo "$(BLUE)Building Go binary for darwin/arm64...$(NC)"
+	@mkdir -p $(BUILD_DIR)
+	@CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-arm64 ./cmd/gofs
+	@echo "$(GREEN)Build completed: $(BUILD_DIR)/$(BINARY_NAME)-darwin-arm64$(NC)"
+
+.PHONY: build-windows
+build-windows: ## Build binary for Windows (amd64)
+	@echo "$(BLUE)Building Go binary for windows/amd64...$(NC)"
+	@mkdir -p $(BUILD_DIR)
+	@CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-windows-amd64.exe ./cmd/gofs
+	@echo "$(GREEN)Build completed: $(BUILD_DIR)/$(BINARY_NAME)-windows-amd64.exe$(NC)"
+
+.PHONY: build-all
+build-all: ## Build binaries for all supported platforms
+	@echo "$(BLUE)Building Go binaries for all platforms...$(NC)"
+	@mkdir -p $(BUILD_DIR)
+	@for platform in $(PLATFORMS); do \
+		os=$$(echo $$platform | cut -d'/' -f1); \
+		arch=$$(echo $$platform | cut -d'/' -f2); \
+		ext=""; \
+		if [ "$$os" = "windows" ]; then ext=".exe"; fi; \
+		echo "$(CYAN)Building for $$os/$$arch...$(NC)"; \
+		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-$$os-$$arch$$ext ./cmd/gofs; \
+		if [ $$? -eq 0 ]; then \
+			echo "$(GREEN)✓ Built $(BUILD_DIR)/$(BINARY_NAME)-$$os-$$arch$$ext$(NC)"; \
+		else \
+			echo "$(RED)✗ Failed to build for $$os/$$arch$(NC)"; \
+		fi; \
+	done
+	@echo "$(GREEN)All builds completed!$(NC)"
+	@echo "$(BLUE)Built binaries:$(NC)"
+	@ls -la $(BUILD_DIR)/
+
+##@ Quality Assurance
+.PHONY: check
+check: fmt lint test ## Run complete quality checks (format + lint + test)
+	@echo "$(GREEN)All quality checks passed!$(NC)"
+
+##@ Setup
+.PHONY: install-hooks
+install-hooks: ## Install Git pre-commit hooks
+	@echo "$(BLUE)Installing Git hooks...$(NC)"
+	@./scripts/install-hooks.sh
+	@echo "$(GREEN)Git hooks installation completed$(NC)"
+
+##@ Cleanup
+.PHONY: clean
+clean: ## Clean build artifacts and test outputs
+	@echo "$(BLUE)Cleaning build artifacts and test outputs...$(NC)"
+	@rm -rf $(BUILD_DIR)
+	@echo "$(GREEN)Cleanup completed$(NC)"
+
+.DEFAULT_GOAL := help

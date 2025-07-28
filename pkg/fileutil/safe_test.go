@@ -133,8 +133,8 @@ func TestIsHidden(t *testing.T) {
 func TestFormatSize(t *testing.T) {
 	tests := []struct {
 		name     string
-		size     int64
 		expected string
+		size     int64
 	}{
 		{
 			name:     "zero bytes",

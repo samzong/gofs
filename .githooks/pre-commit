@@ -1,0 +1,82 @@
+#!/bin/bash
+# Git pre-commit hook for iframe-dashboard
+# 这个脚本会在每次 git commit 前运行代码质量检查
+
+set -e
+
+# 颜色输出
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# cd to project root
+cd "$(git rev-parse --git-dir)/.."
+
+echo -e "${BLUE}正在运行 pre-commit 检查...${NC}"
+
+# 检查是否在项目根目录
+if [ ! -f "Makefile" ]; then
+    echo -e "${RED}错误: 请在项目根目录运行此脚本${NC}"
+    exit 1
+fi
+
+# 1. 检查 Go 文件格式
+echo -e "${BLUE}1. 检查代码格式...${NC}"
+(
+    if goimports -l . | grep -q .; then
+        echo -e "${YELLOW}发现格式问题，正在自动修复...${NC}"
+        (cd .. && make fmt)
+        echo -e "${GREEN}代码格式已修复${NC}"
+        
+        # 如果格式化后有文件变更，需要重新 add
+        if ! git diff --quiet HEAD; then
+            echo -e "${YELLOW}代码格式化后产生了变更，请重新 add 这些文件:${NC}"
+            git diff --name-only HEAD
+            echo -e "${YELLOW}运行: git add . && git commit${NC}"
+            exit 1
+        fi
+    else
+        echo -e "${GREEN}代码格式检查通过${NC}"
+    fi
+)
+
+# 2. 运行 golangci-lint
+echo -e "${BLUE}2. 运行代码检查...${NC}"
+if make lint; then
+    echo -e "${GREEN}代码检查通过${NC}"
+else
+    echo -e "${RED}代码检查失败，请修复问题后重试${NC}"
+    echo -e "${YELLOW}提示: 运行 'make lint-fix' 可以自动修复一些问题${NC}"
+    exit 1
+fi
+
+# 4. 检查是否有敏感信息
+echo -e "${BLUE}4. 检查敏感信息...${NC}"
+SENSITIVE_PATTERNS=(
+    "password.*=.*['\"][^'\"]*['\"]"
+    "secret.*=.*['\"][^'\"]*['\"]"
+    "token.*=.*['\"][^'\"]*['\"]"
+    "api_key.*=.*['\"][^'\"]*['\"]"
+    "private_key"
+    "BEGIN RSA PRIVATE KEY"
+    "BEGIN PRIVATE KEY"
+)
+
+FOUND_SENSITIVE=false
+for pattern in "${SENSITIVE_PATTERNS[@]}"; do
+    if git diff --cached --name-only | grep -v '.githooks/pre-commit' | xargs grep -i -E "$pattern" 2>/dev/null | grep -v 'tokenString := strings.TrimPrefix(authHeader, "Bearer ")'; then
+        echo -e "${RED}警告: 发现可能的敏感信息${NC}"
+        FOUND_SENSITIVE=true
+    fi
+done
+
+if [ "$FOUND_SENSITIVE" = true ]; then
+    echo -e "${YELLOW}请确认上述内容不包含真实的敏感信息${NC}"
+    echo -e "${YELLOW}如果确认无误，可以使用 git commit --no-verify 跳过检查${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}所有检查通过，准备提交!${NC}"
+exit 0
