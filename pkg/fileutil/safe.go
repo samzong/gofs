@@ -24,19 +24,20 @@ func SafePath(path string) string {
 		return ""
 	}
 
-	// Reject paths starting with / or \ to prevent absolute path access
-	if strings.HasPrefix(path, "/") || strings.HasPrefix(path, "\\") {
+	// Remove leading slashes to make path relative
+	path = strings.TrimPrefix(path, "/")
+	path = strings.TrimPrefix(path, "\\")
+
+	// If path is empty after trimming, return empty
+	if path == "" {
 		return ""
 	}
 
 	// Clean the path to resolve any . elements
-	path = filepath.Clean("/" + path)
-
-	// Remove leading slash to make it relative
-	path = strings.TrimPrefix(path, "/")
+	path = filepath.Clean(path)
 
 	// Triple validation: check again after cleaning
-	if strings.Contains(path, "..") || strings.HasPrefix(path, "/") {
+	if strings.Contains(path, "..") || strings.HasPrefix(path, "/") || strings.HasPrefix(path, "\\") {
 		return ""
 	}
 

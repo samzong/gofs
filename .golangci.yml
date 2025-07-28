@@ -22,50 +22,50 @@ linters:
   default: standard
   enable:
     # Basic error checking
-    - errcheck        # Check error handling
-    - govet           # go vet checks
-    - ineffassign     # Check ineffective assignments
-    - staticcheck     # Static analysis checks
-    - unused          # Check unused code
-    
+    - errcheck # Check error handling
+    - govet # go vet checks
+    - ineffassign # Check ineffective assignments
+    - staticcheck # Static analysis checks
+    - unused # Check unused code
+
     # Code style and formatting
-    - whitespace      # Whitespace checks
-    - misspell        # Spelling error checks
-    - unconvert       # Unnecessary type conversion checks
-    
+    - whitespace # Whitespace checks
+    - misspell # Spelling error checks
+    - unconvert # Unnecessary type conversion checks
+
     # Complexity checks
-    - cyclop          # Cyclomatic complexity checks (replaces gocyclo)
-    - funlen          # Function length checks
-    - lll             # Line length checks
-    
+    - cyclop # Cyclomatic complexity checks (replaces gocyclo)
+    - funlen # Function length checks
+    - lll # Line length checks
+
     # Security checks
-    - gosec           # Security checks
-    
+    - gosec # Security checks
+
     # Performance optimization
-    - prealloc        # Slice preallocation checks
-    - goconst         # Constant checks
-    
+    - prealloc # Slice preallocation checks
+    - goconst # Constant checks
+
     # Error handling best practices
-    - errorlint       # Error handling best practices
-    - wrapcheck       # Error wrapping checks
-    - nilerr          # Check nil error returns
-    
+    - errorlint # Error handling best practices
+    - wrapcheck # Error wrapping checks
+    - nilerr # Check nil error returns
+
     # Go 1.24 new features support
-    - copyloopvar     # Check loop variable copy issues (Go 1.22+)
-    
+    - copyloopvar # Check loop variable copy issues (Go 1.22+)
+
     # Code quality
-    - gocritic        # Go code review tool
-    - revive          # Go code review tool (replaces golint)
-    - unparam         # Check unused parameters
-    - bodyclose       # HTTP response body close checks
-    - contextcheck    # context usage checks
-    - rowserrcheck    # SQL rows.Err() checks
-    - sqlclosecheck   # SQL Close() checks
-    
+    - gocritic # Go code review tool
+    - revive # Go code review tool (replaces golint)
+    - unparam # Check unused parameters
+    - bodyclose # HTTP response body close checks
+    - contextcheck # context usage checks
+    - rowserrcheck # SQL rows.Err() checks
+    - sqlclosecheck # SQL Close() checks
+
     # Testing related
-    - testifylint     # testify usage checks
-    - thelper         # Test helper function checks
-    
+    - testifylint # testify usage checks
+    - thelper # Test helper function checks
+
   settings:
     # Error checking settings
     errcheck:
@@ -78,7 +78,7 @@ linters:
         - fmt.Fprint
         - fmt.Fprintf
         - fmt.Fprintln
-        
+
     # go vet settings
     govet:
       check-shadowing: true
@@ -93,8 +93,7 @@ linters:
         - sortslice
         - timeformat
         - unusedwrite
-    
-      
+
     # Constant checking settings
     goconst:
       min-len: 3
@@ -102,7 +101,7 @@ linters:
       match-constant: true
       numbers: true
       ignore-tests: true
-      
+
     # Code review settings
     gocritic:
       enabled-tags:
@@ -114,19 +113,19 @@ linters:
         - ifElseChain
         - singleCaseSwitch
         - unnamedResult
-        
+
     # Cyclomatic complexity settings
     cyclop:
       max-complexity: 15
       package-average: 10.0
       skip-tests: true
-      
+
     # Function length settings
     funlen:
       lines: 80
       statements: 50
       ignore-comments: true
-      
+
     # Security check settings
     gosec:
       severity: medium
@@ -134,12 +133,12 @@ linters:
       excludes:
         - G101 # Hardcoded credentials check (relaxed for development)
         - G404 # Weak random number generator (used in tests)
-    
+
     # Line length settings
     lll:
       line-length: 120
       tab-width: 4
-      
+
     # Spelling check settings
     misspell:
       locale: US
@@ -147,13 +146,13 @@ linters:
         - iframe
         - auth
         - uuid
-        
+
     # Preallocation check settings
     prealloc:
       simple: true
       range-loops: true
       for-loops: false
-      
+
     # Error wrapping check settings
     wrapcheck:
       ignorePkgs:
@@ -164,7 +163,7 @@ linters:
         - errors.New(
         - errors.Unwrap(
         - errors.Join(
-        
+
     # Revive settings
     revive:
       rules:
@@ -182,7 +181,7 @@ linters:
         - name: var-naming
         - name: var-declaration
         - name: package-comments
-          disabled: true  # Can disable package comment requirements for small projects
+          disabled: true # Can disable package comment requirements for small projects
         - name: range
         - name: receiver-naming
         - name: time-naming
@@ -193,7 +192,7 @@ linters:
         - name: unused-parameter
         - name: unreachable-code
         - name: redefines-builtin-id
-        
+
     # Testing related settings
     testifylint:
       enable:
@@ -237,59 +236,59 @@ formatters:
 issues:
   # Use default exclusion rules but allow customization
   exclude-use-default: true
-  
+
   # Maximum number of issues, 0 means unlimited
   max-issues-per-linter: 0
   max-same-issues: 0
-  
+
   # Whether to check only new code
   new: false
-  
+
   # Custom exclusion rules
   exclude-rules:
     # Test file exclusion rules
     - path: _test\.go
       linters:
-        - cyclop         # Test files can have higher complexity
-        - funlen         # Test functions can be longer
-        - lll            # Test files can have longer lines
-        - wrapcheck      # Relax error wrapping checks for test files
-        - errcheck       # Relax some error checks in tests
-        - gosec          # Relax security checks for test files
-        - goconst        # Relax constant checks for test files
-        
+        - cyclop # Test files can have higher complexity
+        - funlen # Test functions can be longer
+        - lll # Test files can have longer lines
+        - wrapcheck # Relax error wrapping checks for test files
+        - errcheck # Relax some error checks in tests
+        - gosec # Relax security checks for test files
+        - goconst # Relax constant checks for test files
+
     # Special rules for main.go files
     - path: main\.go
       linters:
-        - funlen         # main functions can be longer
-        - cyclop         # main functions can have higher complexity
-        
+        - funlen # main functions can be longer
+        - cyclop # main functions can have higher complexity
+
     # Exclude generated files
     - path: ".*\\.gen\\.go"
       linters:
         - all
-        
+
     # Exclude mock files
     - path: ".*\\.mock\\.go"
       linters:
         - all
-        
+
     # Exclude protobuf generated files
     - path: ".*\\.pb\\.go"
       linters:
         - all
-        
+
     # Exclude common false positives
     - text: 'declaration of "err" shadows declaration at'
       linters:
         - govet
-        
+
     # Exclude weak random number generator warnings in test files
     - path: _test\.go
       text: "G404:"
       linters:
         - gosec
-        
+
     # Exclude struct field alignment warnings (in some cases)
     - text: "fieldalignment:"
       linters:
@@ -308,13 +307,13 @@ severity:
         - misspell
         - whitespace
       severity: warning
-    
+
     # Set performance checks to warning level
     - linters:
         - prealloc
         - goconst
       severity: warning
-    
+
     # Set complexity checks to warning level (but keep funlen as error)
     - linters:
         - cyclop

@@ -135,6 +135,34 @@ build-all: ## Build binaries for all supported platforms
 	@echo "$(BLUE)Built binaries:$(NC)"
 	@ls -la $(BUILD_DIR)/
 
+##@ Testing
+.PHONY: test
+test: ## Run all tests
+	@echo "$(BLUE)Running tests...$(NC)"
+	@go test -v ./...
+	@echo "$(GREEN)All tests passed!$(NC)"
+
+.PHONY: test-coverage
+test-coverage: ## Run tests with coverage report
+	@echo "$(BLUE)Running tests with coverage...$(NC)"
+	@mkdir -p $(BUILD_DIR)
+	@go test -v -coverprofile=$(BUILD_DIR)/coverage.out ./...
+	@go tool cover -html=$(BUILD_DIR)/coverage.out -o $(BUILD_DIR)/coverage.html
+	@echo "$(GREEN)Coverage report generated: $(BUILD_DIR)/coverage.html$(NC)"
+	@go tool cover -func=$(BUILD_DIR)/coverage.out | tail -1
+
+.PHONY: test-race
+test-race: ## Run tests with race detection
+	@echo "$(BLUE)Running tests with race detection...$(NC)"
+	@go test -race -v ./...
+	@echo "$(GREEN)Race detection tests passed!$(NC)"
+
+.PHONY: test-bench
+test-bench: ## Run benchmark tests
+	@echo "$(BLUE)Running benchmark tests...$(NC)"
+	@go test -bench=. -benchmem ./...
+	@echo "$(GREEN)Benchmark tests completed!$(NC)"
+
 ##@ Quality Assurance
 .PHONY: check
 check: fmt lint test ## Run complete quality checks (format + lint + test)
