@@ -11,6 +11,9 @@ GO_VERSION := $(shell go version | awk '{print $$3}')
 BINARY_NAME := $(PROJECT_NAME)
 BUILD_DIR := ./build
 
+# Include homebrew.mk after variables are defined
+include homebrew.mk
+
 # Platform detection
 HOST_OS := $(shell go env GOOS)
 HOST_ARCH := $(shell go env GOARCH)

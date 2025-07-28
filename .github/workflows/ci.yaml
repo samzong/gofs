@@ -27,7 +27,7 @@ jobs:
     - name: Run unit tests
       run: make test
 
-  # Build and release for tags
+  # Build and release for tags using GoReleaser
   release:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
@@ -44,29 +44,12 @@ jobs:
         go-version: '1.24'
         cache: true
       
-    - name: Build all platforms
-      run: make build-all
-      
-    - name: Prepare release assets
-      run: |
-        cd build
-        # Create checksums
-        sha256sum * > checksums.txt
-        # List all files for verification
-        ls -la
-        
-    - name: Extract tag name
-      id: tag
-      run: echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-      
-    - name: Create Release
-      uses: softprops/action-gh-release@v2
+    - name: Run GoReleaser
+      uses: goreleaser/goreleaser-action@v6
       with:
-        tag_name: ${{ steps.tag.outputs.tag }}
-        name: ${{ steps.tag.outputs.tag }}
-        draft: false
-        prerelease: false
-        generate_release_notes: false
-        body: ""
-        files: |
-          build/*
+        distribution: goreleaser
+        version: '~> v2'
+        args: release --clean
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GO_VERSION: ${{ steps.go.outputs.go-version }}
