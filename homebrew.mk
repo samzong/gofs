@@ -21,8 +21,9 @@ else
     ECHO_PREFIX := 
 endif
 
+##@ Homebrew
 .PHONY: update-homebrew
-update-homebrew:
+update-homebrew: ## Update Homebrew formula with new version
 	@echo "==> Starting Homebrew formula update process..."
 	@if [ -z "$(GH_PAT)" ]; then \
 		echo "❌ Error: GH_PAT environment variable is required"; \
