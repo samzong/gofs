@@ -56,7 +56,10 @@ func (s *Server) Start() error {
 	s.mu.Unlock()
 
 	// Start serving
-	return s.server.Serve(listener)
+	if err := s.server.Serve(listener); err != nil {
+		return fmt.Errorf("server failed to serve: %w", err)
+	}
+	return nil
 }
 
 // Shutdown gracefully shuts down the server without interrupting any active connections.
@@ -69,5 +72,8 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		return nil
 	}
 
-	return s.server.Shutdown(ctx)
+	if err := s.server.Shutdown(ctx); err != nil {
+		return fmt.Errorf("server shutdown failed: %w", err)
+	}
+	return nil
 }

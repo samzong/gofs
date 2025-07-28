@@ -33,7 +33,7 @@ Usage: gofs [options]
 
 Options:
   -port int    Server port (default 8000)
-  -host string Server host (default "0.0.0.0")  
+  -host string Server host (default "0.0.0.0")
   -dir string  Root directory to serve (default ".")
   -help        Show help
   -version     Show version
@@ -58,21 +58,7 @@ make build
 
 # Run tests
 make test
-
-# Run with coverage
-make coverage
-
-# Start development server
-make dev
 ```
-
-## Contributing
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
 
 ## License
 

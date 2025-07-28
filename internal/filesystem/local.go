@@ -2,6 +2,7 @@
 package filesystem
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -34,7 +35,12 @@ func (fs *Local) Open(name string) (io.ReadCloser, error) {
 	if err != nil {
 		return nil, err
 	}
-	return os.Open(fullPath)
+	// #nosec G304 - path is validated by safePath function
+	file, err := os.Open(fullPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open file %q: %w", fullPath, err)
+	}
+	return file, nil
 }
 
 // Stat returns file information for the given path.
@@ -46,7 +52,7 @@ func (fs *Local) Stat(name string) (internal.FileInfo, error) {
 
 	info, err := os.Stat(fullPath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to stat file %q: %w", fullPath, err)
 	}
 
 	return &localFileInfo{FileInfo: info}, nil
@@ -61,7 +67,7 @@ func (fs *Local) ReadDir(name string) ([]internal.FileInfo, error) {
 
 	entries, err := os.ReadDir(fullPath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read directory %q: %w", fullPath, err)
 	}
 
 	result := make([]internal.FileInfo, 0, len(entries))

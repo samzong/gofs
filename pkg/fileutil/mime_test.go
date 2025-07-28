@@ -5,6 +5,15 @@ import (
 )
 
 func TestDetectMimeType(t *testing.T) {
+	t.Run("HTML and CSS files", testHTMLAndCSS)
+	t.Run("JavaScript and JSON files", testJavaScriptAndJSON)
+	t.Run("Image files", testImageFiles)
+	t.Run("Document files", testDocumentFiles)
+	t.Run("Configuration files", testConfigFiles)
+	t.Run("Edge cases", testEdgeCases)
+}
+
+func testHTMLAndCSS(t *testing.T) {
 	tests := []struct {
 		name     string
 		filename string
@@ -20,6 +29,24 @@ func TestDetectMimeType(t *testing.T) {
 			filename: "style.css",
 			expected: "text/css; charset=utf-8",
 		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := DetectMimeType(tt.filename)
+			if result != tt.expected {
+				t.Errorf("DetectMimeType(%q) = %q, want %q", tt.filename, result, tt.expected)
+			}
+		})
+	}
+}
+
+func testJavaScriptAndJSON(t *testing.T) {
+	tests := []struct {
+		name     string
+		filename string
+		expected string
+	}{
 		{
 			name:     "JavaScript file",
 			filename: "script.js",
@@ -30,6 +57,24 @@ func TestDetectMimeType(t *testing.T) {
 			filename: "data.json",
 			expected: "application/json",
 		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := DetectMimeType(tt.filename)
+			if result != tt.expected {
+				t.Errorf("DetectMimeType(%q) = %q, want %q", tt.filename, result, tt.expected)
+			}
+		})
+	}
+}
+
+func testImageFiles(t *testing.T) {
+	tests := []struct {
+		name     string
+		filename string
+		expected string
+	}{
 		{
 			name:     "PNG image",
 			filename: "image.png",
@@ -40,6 +85,24 @@ func TestDetectMimeType(t *testing.T) {
 			filename: "photo.jpg",
 			expected: "image/jpeg",
 		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := DetectMimeType(tt.filename)
+			if result != tt.expected {
+				t.Errorf("DetectMimeType(%q) = %q, want %q", tt.filename, result, tt.expected)
+			}
+		})
+	}
+}
+
+func testDocumentFiles(t *testing.T) {
+	tests := []struct {
+		name     string
+		filename string
+		expected string
+	}{
 		{
 			name:     "PDF file",
 			filename: "document.pdf",
@@ -55,6 +118,24 @@ func TestDetectMimeType(t *testing.T) {
 			filename: "README.md",
 			expected: "text/markdown",
 		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := DetectMimeType(tt.filename)
+			if result != tt.expected {
+				t.Errorf("DetectMimeType(%q) = %q, want %q", tt.filename, result, tt.expected)
+			}
+		})
+	}
+}
+
+func testConfigFiles(t *testing.T) {
+	tests := []struct {
+		name     string
+		filename string
+		expected string
+	}{
 		{
 			name:     "YAML file",
 			filename: "config.yaml",
@@ -75,6 +156,24 @@ func TestDetectMimeType(t *testing.T) {
 			filename: "app.conf",
 			expected: "text/plain; charset=utf-8",
 		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := DetectMimeType(tt.filename)
+			if result != tt.expected {
+				t.Errorf("DetectMimeType(%q) = %q, want %q", tt.filename, result, tt.expected)
+			}
+		})
+	}
+}
+
+func testEdgeCases(t *testing.T) {
+	tests := []struct {
+		name     string
+		filename string
+		expected string
+	}{
 		{
 			name:     "Unknown extension",
 			filename: "file.unknown",

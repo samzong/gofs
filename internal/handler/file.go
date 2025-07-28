@@ -97,13 +97,15 @@ func (h *File) handleDirectory(w http.ResponseWriter, r *http.Request, path stri
 }
 
 // handleFile processes file requests and serves file content with appropriate headers.
-func (h *File) handleFile(w http.ResponseWriter, r *http.Request, path string) {
+func (h *File) handleFile(w http.ResponseWriter, _ *http.Request, path string) {
 	file, err := h.fs.Open(path)
 	if err != nil {
 		http.Error(w, "Cannot open file", http.StatusInternalServerError)
 		return
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close() // nolint:errcheck // Ignore close error in defer
+	}()
 
 	// Get file info for size and security checks
 	info, err := h.fs.Stat(path)
@@ -125,8 +127,7 @@ func (h *File) handleFile(w http.ResponseWriter, r *http.Request, path string) {
 
 	// Set filename in Content-Disposition header with proper escaping
 	filename := filepath.Base(path)
-	w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"",
-		strings.ReplaceAll(filename, "\"", "\\\"")))
+	w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=%q", filename))
 
 	// Set MIME type
 	mimeType := fileutil.DetectMimeType(path)
@@ -138,10 +139,16 @@ func (h *File) handleFile(w http.ResponseWriter, r *http.Request, path string) {
 	// Enterprise optimization: Use buffered copy for large files
 	if info.Size() > 1<<20 { // 1MB threshold
 		buf := make([]byte, 64<<10) // 64KB buffer for large files
-		io.CopyBuffer(w, file, buf)
+		if _, err := io.CopyBuffer(w, file, buf); err != nil {
+			// Error already written to response, just log
+			return
+		}
 	} else {
 		// Use standard copy for small files (already optimized)
-		io.Copy(w, file)
+		if _, err := io.Copy(w, file); err != nil {
+			// Error already written to response, just log
+			return
+		}
 	}
 }
 
@@ -170,17 +177,34 @@ func (h *File) renderJSON(w http.ResponseWriter, path string, files []internal.F
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, "JSON encoding error", http.StatusInternalServerError)
+		return
+	}
 }
 
 // renderHTML renders the file listing as HTML for browser viewing.
 func (h *File) renderHTML(w http.ResponseWriter, path string, files []internal.FileInfo) {
 	const htmlTemplate = `<!DOCTYPE html>
-<html><head><title>{{.Path}}</title></head>
-<body><h1>{{.Path}}</h1><ul>
-{{if .Parent}}<li><a href="../">📁 ..</a></li>{{end}}
-{{range .Files}}<li><a href="{{.Name}}{{if .IsDir}}/{{end}}">{{if .IsDir}}📁{{else}}📄{{end}} {{.Name}}</a>{{if not .IsDir}} ({{.Size}}){{end}}</li>{{end}}
-</ul></body></html>`
+<html>
+<head>
+	<title>{{.Path}}</title>
+</head>
+<body>
+	<h1>{{.Path}}</h1>
+	<ul>
+		{{if .Parent}}<li><a href="../">📁 ..</a></li>{{end}}
+		{{range .Files}}
+		<li>
+			<a href="{{.Name}}{{if .IsDir}}/{{end}}">
+				{{if .IsDir}}📁{{else}}📄{{end}} {{.Name}}
+			</a>
+			{{if not .IsDir}} ({{.Size}}){{end}}
+		</li>
+		{{end}}
+	</ul>
+</body>
+</html>`
 
 	type FileItem struct {
 		Name  string
@@ -218,5 +242,8 @@ func (h *File) renderHTML(w http.ResponseWriter, path string, files []internal.F
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	tmpl.Execute(w, data)
+	if err := tmpl.Execute(w, data); err != nil {
+		http.Error(w, "Template execution error", http.StatusInternalServerError)
+		return
+	}
 }

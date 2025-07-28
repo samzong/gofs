@@ -27,7 +27,10 @@ func New(port int, host, dir string) (*Config, error) {
 	}
 
 	cfg.setDefaults()
-	return cfg, cfg.validate()
+	if err := cfg.validate(); err != nil {
+		return nil, err
+	}
+	return cfg, nil
 }
 
 // setDefaults applies default values for zero-value fields.

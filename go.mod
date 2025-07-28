@@ -1,3 +1,3 @@
 module github.com/samzong/gofs
 
-go 1.21
+go 1.24
