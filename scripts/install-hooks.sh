@@ -1,35 +1,35 @@
 #!/bin/bash
-# 安装 Git hooks 脚本
+# Git hooks installation script
 
 set -e
 
-# 颜色输出
+# Color output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-echo -e "${BLUE}安装 Git hooks...${NC}"
+echo -e "${BLUE}Installing Git hooks...${NC}"
 
-# 检查是否在 Git 仓库中
+# Check if we're in a Git repository
 if [ ! -d ".git" ]; then
-    echo -e "${RED}错误: 当前目录不是 Git 仓库${NC}"
+    echo -e "${RED}Error: Current directory is not a Git repository${NC}"
     exit 1
 fi
 
-# 创建 hooks 目录（如果不存在）
+# Create hooks directory (if it doesn't exist)
 mkdir -p .git/hooks
 
-# 复制 pre-commit hook
+# Copy pre-commit hook
 if [ -f ".githooks/pre-commit" ]; then
     cp .githooks/pre-commit .git/hooks/pre-commit
     chmod +x .git/hooks/pre-commit
-    echo -e "${GREEN}Pre-commit hook 已安装${NC}"
+    echo -e "${GREEN}Pre-commit hook installed${NC}"
 else
-    echo -e "${RED}错误: .githooks/pre-commit 文件不存在${NC}"
+    echo -e "${RED}Error: .githooks/pre-commit file does not exist${NC}"
     exit 1
 fi
 
-echo -e "${GREEN}Git hooks 安装完成!${NC}"
-echo -e "${BLUE}现在每次 git commit 时都会自动运行代码质量检查${NC}"
-echo -e "${BLUE}如果需要跳过检查，可以使用: git commit --no-verify${NC}"
+echo -e "${GREEN}Git hooks installation completed!${NC}"
+echo -e "${BLUE}Code quality checks will now run automatically on every git commit${NC}"
+echo -e "${BLUE}To skip checks, use: git commit --no-verify${NC}"
