@@ -15,15 +15,17 @@ type Config struct {
 	MaxFileSize    int64
 	RequestTimeout int
 	EnableSecurity bool
+	Theme          string
 }
 
 // New creates a new configuration with the provided values.
 // Zero values are replaced with sensible defaults.
-func New(port int, host, dir string) (*Config, error) {
+func New(port int, host, dir, theme string) (*Config, error) {
 	cfg := &Config{
-		Port: port,
-		Host: host,
-		Dir:  dir,
+		Port:  port,
+		Host:  host,
+		Dir:   dir,
+		Theme: theme,
 	}
 
 	cfg.setDefaults()
@@ -50,6 +52,9 @@ func (c *Config) setDefaults() {
 	if c.RequestTimeout == 0 {
 		c.RequestTimeout = 30 // 30 seconds default
 	}
+	if c.Theme == "" {
+		c.Theme = "default" // default theme
+	}
 	// EnableSecurity defaults to false for backward compatibility
 }
 
@@ -57,6 +62,15 @@ func (c *Config) setDefaults() {
 func (c *Config) validate() error {
 	if c.Port < 1 || c.Port > 65535 {
 		return fmt.Errorf("port must be between 1 and 65535, got %d", c.Port)
+	}
+
+	// Validate theme selection (enterprise-grade themes only)
+	validThemes := map[string]bool{
+		"default": true,
+		"classic": true,
+	}
+	if !validThemes[c.Theme] {
+		return fmt.Errorf("invalid theme %q: supported themes are 'default' and 'classic'", c.Theme)
 	}
 
 	absDir, err := filepath.Abs(c.Dir)
@@ -74,6 +88,12 @@ func (c *Config) validate() error {
 	}
 
 	c.Dir = absDir // Use absolute path
+
+	// Validate theme
+	if c.Theme != "default" && c.Theme != "classic" {
+		return fmt.Errorf("invalid theme %q: supported themes are 'default' and 'classic'", c.Theme)
+	}
+
 	return nil
 }
 

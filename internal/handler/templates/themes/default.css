@@ -1,0 +1,103 @@
+/* Default Theme - Enterprise Minimal Design */
+/* 企业级极简设计，符合现代Web标准和可访问性要求 */
+
+/* System-level design foundation with accessibility features */
+* {
+	margin: 0;
+	padding: 0;
+	box-sizing: border-box;
+}
+
+body {
+	font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+	line-height: 1.4;
+	color: #212529;
+	background-color: #ffffff;
+	padding: 1rem;
+}
+
+/* Automatic dark mode support based on user preference */
+@media (prefers-color-scheme: dark) {
+	body {
+		color: #f8f9fa;
+		background-color: #212529;
+	}
+	
+	a {
+		color: #66d9ef;
+	}
+	
+	a:hover {
+		color: #a6e3ff;
+	}
+}
+
+/* Typography hierarchy for clear information structure */
+h1 {
+	font-size: 1.5rem;
+	font-weight: 600;
+	margin-bottom: 1rem;
+	color: inherit;
+}
+
+/* Clean list design for file listings */
+ul {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+li {
+	margin: 0.125rem 0;
+	line-height: 1.4;
+}
+
+/* Enhanced link styling for better usability */
+a {
+	color: #0066cc;
+	text-decoration: none;
+	display: inline;
+	transition: color 0.2s ease;
+}
+
+a:hover {
+	color: #004499;
+	text-decoration: underline;
+}
+
+/* Keyboard navigation support */
+a:focus {
+	outline: 2px solid #0066cc;
+	outline-offset: 2px;
+}
+
+/* Responsive design for mobile devices */
+@media (max-width: 600px) {
+	body {
+		padding: 0.5rem;
+		font-size: 0.9rem;
+	}
+	
+	h1 {
+		font-size: 1.25rem;
+	}
+}
+
+/* Accessibility: Support for users who prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+	a {
+		transition: none;
+	}
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+	a {
+		color: #0000ff;
+	}
+	
+	a:hover {
+		color: #0000ff;
+		background-color: #ffff00;
+	}
+}

@@ -35,6 +35,7 @@ func main() {
 		host     = flag.String("host", "127.0.0.1", "Server host")
 		dir      = flag.String("dir", ".", "Root directory")
 		dirD     = flag.String("d", ".", "Root directory (shorthand)")
+		theme    = flag.String("theme", "default", "UI theme (default, classic)")
 		help     = flag.Bool("help", false, "Show help")
 		helpH    = flag.Bool("h", false, "Show help (shorthand)")
 		version  = flag.Bool("version", false, "Show version")
@@ -63,7 +64,7 @@ func main() {
 		finalDir = *dirD
 	}
 
-	cfg, err := config.New(finalPort, *host, finalDir)
+	cfg, err := config.New(finalPort, *host, finalDir, *theme)
 	if err != nil {
 		log.Fatalf("Configuration error: %v", err)
 	}
@@ -110,6 +111,7 @@ func showHelp() {
 	fmt.Println("  -h, --help           Show this help message and exit")
 	fmt.Println("      --host string    Server host address to bind to (default \"127.0.0.1\")")
 	fmt.Println("  -p, --port int       Server port number to listen on (default 8000)")
+	fmt.Println("      --theme string   UI theme: default (minimal), classic (Windows-style) (default \"default\")")
 	fmt.Println("  -v, --version        Show version information and exit")
 }
 

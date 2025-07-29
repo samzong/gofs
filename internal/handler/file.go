@@ -99,8 +99,8 @@ func (h *File) handleDirectory(w http.ResponseWriter, r *http.Request, path stri
 		return
 	}
 
-	// Render HTML response
-	h.renderHTML(w, path, files)
+	// Render HTML response with configured theme
+	h.renderHTML(w, path, files, h.config.Theme)
 }
 
 // handleFile processes file requests and serves file content with appropriate headers.
@@ -201,7 +201,7 @@ func (h *File) renderJSON(w http.ResponseWriter, path string, files []internal.F
 }
 
 // renderHTML renders the file listing as HTML for browser viewing.
-func (h *File) renderHTML(w http.ResponseWriter, path string, files []internal.FileInfo) {
+func (h *File) renderHTML(w http.ResponseWriter, path string, files []internal.FileInfo, theme string) {
 	type FileItem struct {
 		Name  string
 		Size  string
@@ -226,11 +226,13 @@ func (h *File) renderHTML(w http.ResponseWriter, path string, files []internal.F
 		Files  []FileItem
 		Parent bool
 		CSS    template.CSS // Inject CSS styles as safe CSS type
+		Theme  string       // Current theme name for potential use in template
 	}{
 		Path:   "/" + path,
 		Parent: path != "",
 		Files:  items,
-		CSS:    template.CSS(templates.StylesCSS), // Convert to template.CSS to bypass XSS protection
+		CSS:    template.CSS(templates.GetThemeCSS(theme)), // Use theme-specific CSS
+		Theme:  theme,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
