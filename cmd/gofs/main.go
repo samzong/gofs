@@ -30,16 +30,18 @@ var (
 func main() {
 	// Parse command line flags
 	var (
-		port     = flag.Int("port", 8000, "Server port")
-		portP    = flag.Int("p", 8000, "Server port (shorthand)")
-		host     = flag.String("host", "127.0.0.1", "Server host")
-		dir      = flag.String("dir", ".", "Root directory")
-		dirD     = flag.String("d", ".", "Root directory (shorthand)")
-		theme    = flag.String("theme", "default", "UI theme (default, classic)")
-		help     = flag.Bool("help", false, "Show help")
-		helpH    = flag.Bool("h", false, "Show help (shorthand)")
-		version  = flag.Bool("version", false, "Show version")
-		versionV = flag.Bool("v", false, "Show version (shorthand)")
+		port       = flag.Int("port", 8000, "Server port")
+		portP      = flag.Int("p", 8000, "Server port (shorthand)")
+		host       = flag.String("host", "127.0.0.1", "Server host")
+		dir        = flag.String("dir", ".", "Root directory")
+		dirD       = flag.String("d", ".", "Root directory (shorthand)")
+		theme      = flag.String("theme", "default", "UI theme (default, classic)")
+		showHidden = flag.Bool("show-hidden", false, "Show hidden files and directories")
+		hiddenH    = flag.Bool("H", false, "Show hidden files and directories (shorthand)")
+		help       = flag.Bool("help", false, "Show help")
+		helpH      = flag.Bool("h", false, "Show help (shorthand)")
+		version    = flag.Bool("version", false, "Show version")
+		versionV   = flag.Bool("v", false, "Show version (shorthand)")
 	)
 	flag.Parse()
 
@@ -64,12 +66,14 @@ func main() {
 		finalDir = *dirD
 	}
 
-	cfg, err := config.New(finalPort, *host, finalDir, *theme)
+	finalShowHidden := *showHidden || *hiddenH
+
+	cfg, err := config.New(finalPort, *host, finalDir, *theme, finalShowHidden)
 	if err != nil {
 		log.Fatalf("Configuration error: %v", err)
 	}
 
-	fs := filesystem.NewLocal(cfg.Dir)
+	fs := filesystem.NewLocal(cfg.Dir, cfg.ShowHidden)
 	fileHandler := handler.NewFile(fs, cfg)
 	srv := server.New(cfg, fileHandler)
 
@@ -109,6 +113,7 @@ func showHelp() {
 	fmt.Println("Options:")
 	fmt.Println("  -d, --dir string      Root directory to serve files from (default \".\")")
 	fmt.Println("  -h, --help           Show this help message and exit")
+	fmt.Println("  -H, --show-hidden    Show hidden files and directories")
 	fmt.Println("      --host string    Server host address to bind to (default \"127.0.0.1\")")
 	fmt.Println("  -p, --port int       Server port number to listen on (default 8000)")
 	fmt.Println("      --theme string   UI theme: default (minimal), classic (Windows-style) (default \"default\")")

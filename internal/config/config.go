@@ -16,16 +16,18 @@ type Config struct {
 	RequestTimeout int
 	EnableSecurity bool
 	Theme          string
+	ShowHidden     bool
 }
 
 // New creates a new configuration with the provided values.
 // Zero values are replaced with sensible defaults.
-func New(port int, host, dir, theme string) (*Config, error) {
+func New(port int, host, dir, theme string, showHidden bool) (*Config, error) {
 	cfg := &Config{
-		Port:  port,
-		Host:  host,
-		Dir:   dir,
-		Theme: theme,
+		Port:       port,
+		Host:       host,
+		Dir:        dir,
+		Theme:      theme,
+		ShowHidden: showHidden,
 	}
 
 	cfg.setDefaults()

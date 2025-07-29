@@ -14,13 +14,15 @@ import (
 
 // Local implements the FileSystem interface for local file system access.
 type Local struct {
-	root string
+	root       string
+	showHidden bool
 }
 
 // NewLocal creates a new local file system instance.
-func NewLocal(root string) *Local {
+func NewLocal(root string, showHidden bool) *Local {
 	return &Local{
-		root: filepath.Clean(root),
+		root:       filepath.Clean(root),
+		showHidden: showHidden,
 	}
 }
 
@@ -84,6 +86,11 @@ func (fs *Local) ReadDir(name string) ([]internal.FileInfo, error) {
 
 	result := make([]internal.FileInfo, 0, len(entries))
 	for _, entry := range entries {
+		// Filter hidden files if showHidden is false
+		if !fs.showHidden && isHidden(entry.Name()) {
+			continue
+		}
+
 		info, err := entry.Info()
 		if err != nil {
 			continue // Skip files we can't stat
@@ -136,6 +143,11 @@ func (fs *Local) safePath(name string) (string, error) {
 	}
 
 	return fullPath, nil
+}
+
+// isHidden checks if a file or directory is hidden (starts with dot).
+func isHidden(name string) bool {
+	return strings.HasPrefix(name, ".")
 }
 
 // localFileInfo implements internal.FileInfo for os.FileInfo.
