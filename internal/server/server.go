@@ -22,14 +22,28 @@ type Server struct {
 	mu       sync.RWMutex
 }
 
+// healthCheckMiddleware wraps a handler to add health check endpoints.
+func healthCheckMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/healthz" || r.URL.Path == "/readyz" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 // New creates a new HTTP server instance with the given configuration and handler.
 // The authMiddleware parameter is optional; if nil, no authentication is required.
 func New(cfg *config.Config, handler http.Handler, authMiddleware *middleware.BasicAuth) *Server {
 	// Wrap handler with authentication middleware if provided
-	finalHandler := handler
+	var finalHandler = handler
 	if authMiddleware != nil {
-		finalHandler = authMiddleware.Middleware(handler)
+		finalHandler = authMiddleware.Middleware(finalHandler)
 	}
+
+	// Add health check middleware
+	finalHandler = healthCheckMiddleware(finalHandler)
 
 	return &Server{
 		config:  cfg,
