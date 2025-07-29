@@ -62,8 +62,8 @@ func (c *Config) setDefaults() {
 
 // validate checks that the configuration is valid.
 func (c *Config) validate() error {
-	if c.Port < 1 || c.Port > 65535 {
-		return fmt.Errorf("port must be between 1 and 65535, got %d", c.Port)
+	if c.Port < 0 || c.Port > 65535 {
+		return fmt.Errorf("port must be between 0 and 65535, got %d", c.Port)
 	}
 
 	// Validate theme selection (enterprise-grade themes only)

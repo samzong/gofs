@@ -7,9 +7,8 @@ A lightweight, fast HTTP file server written in Go.
 
 ## Features
 
-- **Zero dependencies**: Built with Go standard library only
 - **Fast**: Optimized for performance with minimal overhead
-- **Secure**: Safe path handling prevents directory traversal attacks
+- **Secure**: Safe path handling prevents directory traversal attacks. For basic authentication, it uses `bcrypt` for secure password hashing.
 - **Simple**: Single binary, easy deployment
 - **Cross-platform**: Works on Linux, macOS, Windows
 

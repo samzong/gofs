@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/samzong/gofs/internal/config"
+	"github.com/samzong/gofs/internal/middleware"
 )
 
 // Server implements a lightweight HTTP file server with graceful shutdown support.
@@ -22,10 +23,17 @@ type Server struct {
 }
 
 // New creates a new HTTP server instance with the given configuration and handler.
-func New(cfg *config.Config, handler http.Handler) *Server {
+// The authMiddleware parameter is optional; if nil, no authentication is required.
+func New(cfg *config.Config, handler http.Handler, authMiddleware *middleware.BasicAuth) *Server {
+	// Wrap handler with authentication middleware if provided
+	finalHandler := handler
+	if authMiddleware != nil {
+		finalHandler = authMiddleware.Middleware(handler)
+	}
+
 	return &Server{
 		config:  cfg,
-		handler: handler,
+		handler: finalHandler,
 	}
 }
 

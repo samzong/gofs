@@ -6,9 +6,9 @@ _Last updated: 2025-07-29_
 
 ### 1. Basic Auth (Must have)
 
-- [ ] Add simple HTTP Basic Auth (username/password in config)
-- [ ] Protect all endpoints with one switch
-- [ ] Config file format with YAML
+- [x] Add simple HTTP Basic Auth (username/password)
+    - [x] Add the parameter `--auth username:password` (-a) to specify the user name and password, in the format of username:password
+- [x] Protect all endpoints with one switch
 
 ### 2. Health Check (Easy)
 

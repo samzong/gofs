@@ -15,6 +15,7 @@ import (
 	"github.com/samzong/gofs/internal/config"
 	"github.com/samzong/gofs/internal/filesystem"
 	"github.com/samzong/gofs/internal/handler"
+	"github.com/samzong/gofs/internal/middleware"
 	"github.com/samzong/gofs/internal/server"
 )
 
@@ -38,10 +39,13 @@ func main() {
 		theme      = flag.String("theme", "default", "UI theme (default, classic)")
 		showHidden = flag.Bool("show-hidden", false, "Show hidden files and directories")
 		hiddenH    = flag.Bool("H", false, "Show hidden files and directories (shorthand)")
-		help       = flag.Bool("help", false, "Show help")
-		helpH      = flag.Bool("h", false, "Show help (shorthand)")
-		version    = flag.Bool("version", false, "Show version")
-		versionV   = flag.Bool("v", false, "Show version (shorthand)")
+		// Basic Authentication - single flag format
+		auth     = flag.String("auth", "", "Enable HTTP Basic Authentication with user:password format")
+		authA    = flag.String("a", "", "Enable HTTP Basic Authentication with user:password format (shorthand)")
+		help     = flag.Bool("help", false, "Show help")
+		helpH    = flag.Bool("h", false, "Show help (shorthand)")
+		version  = flag.Bool("version", false, "Show version")
+		versionV = flag.Bool("v", false, "Show version (shorthand)")
 	)
 	flag.Parse()
 
@@ -68,14 +72,31 @@ func main() {
 
 	finalShowHidden := *showHidden || *hiddenH
 
+	// Handle authentication parameter - use short flag if provided
+	finalAuth := *auth
+	if *authA != "" {
+		finalAuth = *authA
+	}
+
+	// Create config without authentication concerns
 	cfg, err := config.New(finalPort, *host, finalDir, *theme, finalShowHidden)
 	if err != nil {
 		log.Fatalf("Configuration error: %v", err)
 	}
 
+	// Parse and create authentication middleware independently
+	var authMiddleware *middleware.BasicAuth
+	if finalAuth != "" {
+		var err error
+		authMiddleware, err = middleware.NewBasicAuthFromCredentials(finalAuth)
+		if err != nil {
+			log.Fatalf("Authentication error: %v", err)
+		}
+	}
+
 	fs := filesystem.NewLocal(cfg.Dir, cfg.ShowHidden)
 	fileHandler := handler.NewFile(fs, cfg)
-	srv := server.New(cfg, fileHandler)
+	srv := server.New(cfg, fileHandler, authMiddleware)
 
 	go func() {
 		fmt.Printf("Starting gofs server...\n")
@@ -111,13 +132,14 @@ func showHelp() {
 	fmt.Println("  gofs [options]")
 	fmt.Println()
 	fmt.Println("Options:")
-	fmt.Println("  -d, --dir string      Root directory to serve files from (default \".\")")
-	fmt.Println("  -h, --help           Show this help message and exit")
-	fmt.Println("  -H, --show-hidden    Show hidden files and directories")
-	fmt.Println("      --host string    Server host address to bind to (default \"127.0.0.1\")")
-	fmt.Println("  -p, --port int       Server port number to listen on (default 8000)")
-	fmt.Println("      --theme string   UI theme: default (minimal), classic (Windows-style) (default \"default\")")
-	fmt.Println("  -v, --version        Show version information and exit")
+	fmt.Println("  -a, --auth string   Enable HTTP Basic Authentication with user:password format")
+	fmt.Println("  -d, --dir string    Root directory to serve files from (default \".\")")
+	fmt.Println("  -h, --help          Show this help message and exit")
+	fmt.Println("  -H, --show-hidden   Show hidden files and directories")
+	fmt.Println("      --host string   Server host address to bind to (default \"127.0.0.1\")")
+	fmt.Println("  -p, --port int      Server port number to listen on (default 8000)")
+	fmt.Println("      --theme string  UI theme: default (minimal), classic (Windows-style) (default \"default\")")
+	fmt.Println("  -v, --version       Show version information and exit")
 }
 
 func showVersion() {
