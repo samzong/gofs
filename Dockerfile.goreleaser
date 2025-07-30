@@ -1,0 +1,31 @@
+# GoReleaser-specific Dockerfile that uses pre-built binary
+# This Dockerfile expects the binary to be provided by GoReleaser
+FROM cgr.dev/chainguard/static:latest
+
+# Security labels for compliance and traceability
+LABEL org.opencontainers.image.vendor="gofs" \
+      org.opencontainers.image.title="gofs" \
+      org.opencontainers.image.description="Secure file server written in Go" \
+      org.opencontainers.image.url="https://github.com/samzong/gofs" \
+      org.opencontainers.image.source="https://github.com/samzong/gofs" \
+      org.opencontainers.image.licenses="MIT" \
+      security.scan.enabled="true" \
+      security.hardening.enabled="true" \
+      security.nonroot="true"
+
+# Copy the statically linked binary from GoReleaser
+COPY gofs /gofs
+
+# Set security context - Chainguard images run as nonroot by default
+USER 65532:65532
+
+# Set working directory and home for security
+WORKDIR /
+ENV HOME=/tmp
+
+# Expose the configurable port
+EXPOSE 8000
+
+# Default configuration optimized for containers
+ENTRYPOINT ["/gofs"]
+CMD ["--host", "0.0.0.0", "--port", "8000", "--dir", "/data"]

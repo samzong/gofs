@@ -11,7 +11,7 @@
 		{{if .Parent}}<li><a href="../">📁 ..</a></li>{{end}}
 		{{range .Files}}
 		<li>
-			<a href="{{.Name}}{{if .IsDir}}/{{end}}">
+			<a href="./{{.Name}}{{if .IsDir}}/{{end}}">
 				{{if .IsDir}}📁{{else}}📄{{end}} {{.Name}}
 			</a>
 			{{if and (not .IsDir) (ne $.Theme "default")}} ({{.Size}}){{end}}

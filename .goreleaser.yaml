@@ -27,12 +27,9 @@ builds:
       - -s -w
       - -X main.version={{.Version}}
       - -X main.buildTime={{.Date}}
-      - -X main.goVersion={{.Env.GO_VERSION}}
 
 archives:
-  - id: gofs
-    builds:
-      - gofs
+  - id: default
     name_template: >-
       {{ .ProjectName }}_
       {{- title .Os }}_
@@ -40,9 +37,6 @@ archives:
       {{- else if eq .Arch "386" }}i386
       {{- else }}{{ .Arch }}{{ end }}
       {{- if .Arm }}v{{ .Arm }}{{ end }}
-    format_overrides:
-      - goos: windows
-        format: zip
     files:
       - README.md
       - LICENSE
@@ -51,7 +45,7 @@ checksum:
   name_template: "checksums.txt"
 
 snapshot:
-  name_template: "{{ incpatch .Version }}-next"
+  version_template: "{{ incpatch .Version }}-next"
 
 changelog:
   sort: asc
@@ -70,7 +64,8 @@ dockers:
   - id: gofs-amd64
     goos: linux
     goarch: amd64
-    dockerfile: Dockerfile
+    dockerfile: Dockerfile.goreleaser
+    use: buildx
     image_templates:
       - "ghcr.io/samzong/gofs:{{ .Tag }}-amd64"
       - "ghcr.io/samzong/gofs:latest-amd64"
@@ -82,15 +77,13 @@ dockers:
       - "--label=org.opencontainers.image.version={{.Version}}"
       - "--label=org.opencontainers.image.source=https://github.com/samzong/gofs"
       - "--label=org.opencontainers.image.description=Simple file server written in Go"
-      - "--build-arg=VERSION={{.Version}}"
-      - "--build-arg=BUILD_TIME={{.Date}}"
-      - "--build-arg=GO_VERSION={{.Env.GO_VERSION}}"
       - "--platform=linux/amd64"
 
   - id: gofs-arm64
     goos: linux
     goarch: arm64
-    dockerfile: Dockerfile
+    dockerfile: Dockerfile.goreleaser
+    use: buildx
     image_templates:
       - "ghcr.io/samzong/gofs:{{ .Tag }}-arm64"
       - "ghcr.io/samzong/gofs:latest-arm64"
@@ -102,9 +95,6 @@ dockers:
       - "--label=org.opencontainers.image.version={{.Version}}"
       - "--label=org.opencontainers.image.source=https://github.com/samzong/gofs"
       - "--label=org.opencontainers.image.description=Simple file server written in Go"
-      - "--build-arg=VERSION={{.Version}}"
-      - "--build-arg=BUILD_TIME={{.Date}}"
-      - "--build-arg=GO_VERSION={{.Env.GO_VERSION}}"
       - "--platform=linux/arm64"
 
 # Docker manifests for multi-arch images
@@ -126,6 +116,7 @@ release:
   draft: false
   prerelease: auto
   mode: replace
+  replace_existing_artifacts: true
   header: |
     ## What's Changed
     
