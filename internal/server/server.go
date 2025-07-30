@@ -24,10 +24,11 @@ type Server struct {
 	mu       sync.RWMutex
 }
 
-// healthCheckMiddleware wraps a handler to add health check endpoints.
+// healthCheckMiddleware wraps a handler to add health check endpoint.
 func healthCheckMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/healthz" || r.URL.Path == "/readyz" {
+		switch r.URL.Path {
+		case "/healthz", "/readyz":
 			w.WriteHeader(http.StatusOK)
 			fmt.Fprint(w, "OK")
 			return
@@ -79,7 +80,7 @@ func New(cfg *config.Config, handler http.Handler, authMiddleware *middleware.Ba
 
 	componentLogger := logger.With(slog.String("component", "server"))
 
-	// Build middleware chain
+	// Build simple middleware chain
 	var finalHandler = handler
 
 	// Add health check middleware (first in chain)

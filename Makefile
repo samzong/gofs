@@ -29,6 +29,10 @@ PLATFORMS := \
 	darwin/arm64 \
 	windows/amd64
 
+# Docker configuration for local development
+DOCKER_IMAGE := $(PROJECT_NAME)
+DOCKER_PLATFORMS := linux/amd64,linux/arm64
+
 # Terminal colors for output formatting
 RED := \033[0;31m
 GREEN := \033[0;32m
@@ -184,5 +188,54 @@ clean: ## Clean build artifacts and test outputs
 	@echo "$(BLUE)Cleaning build artifacts and test outputs...$(NC)"
 	@rm -rf $(BUILD_DIR)
 	@echo "$(GREEN)Cleanup completed$(NC)"
+
+##@ Docker
+.PHONY: docker-build
+docker-build: ## Build Docker image for local development
+	@echo "$(BLUE)Building Docker image $(DOCKER_IMAGE):$(VERSION)...$(NC)"
+	@docker build \
+		--build-arg VERSION=$(VERSION) \
+		--build-arg BUILD_TIME=$(BUILD_TIME) \
+		--build-arg GO_VERSION=$(GO_VERSION) \
+		--tag $(DOCKER_IMAGE):$(VERSION) \
+		--tag $(DOCKER_IMAGE):latest \
+		.
+	@echo "$(GREEN)Docker image built successfully$(NC)"
+
+.PHONY: docker-build-multiarch
+docker-build-multiarch: ## Build multi-architecture Docker image for local testing
+	@echo "$(BLUE)Building multi-architecture Docker image...$(NC)"
+	@if ! docker buildx ls | grep -q "multiarch-builder"; then \
+		echo "$(YELLOW)Creating buildx builder instance...$(NC)"; \
+		docker buildx create --name multiarch-builder --driver docker-container --bootstrap --use; \
+	else \
+		docker buildx use multiarch-builder; \
+	fi
+	@docker buildx build \
+		--platform $(DOCKER_PLATFORMS) \
+		--build-arg VERSION=$(VERSION) \
+		--build-arg BUILD_TIME=$(BUILD_TIME) \
+		--build-arg GO_VERSION=$(GO_VERSION) \
+		--tag $(DOCKER_IMAGE):$(VERSION) \
+		--tag $(DOCKER_IMAGE):latest \
+		--load \
+		.
+	@echo "$(GREEN)Multi-architecture Docker image built successfully$(NC)"
+
+.PHONY: docker-run
+docker-run: ## Run Docker container locally for testing
+	@echo "$(BLUE)Running Docker container...$(NC)"
+	@docker run --rm -it \
+		-p 8000:8000 \
+		-v $(PWD):/data:ro \
+		$(DOCKER_IMAGE):latest
+	@echo "$(GREEN)Docker container stopped$(NC)"
+
+.PHONY: docker-clean
+docker-clean: ## Clean local Docker images and build cache
+	@echo "$(BLUE)Cleaning Docker images and build cache...$(NC)"
+	@docker images $(DOCKER_IMAGE) -q | xargs -r docker rmi -f
+	@docker buildx prune -f
+	@echo "$(GREEN)Docker cleanup completed$(NC)"
 
 .DEFAULT_GOAL := help

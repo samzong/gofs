@@ -21,12 +21,14 @@ import (
 )
 
 var (
-	// Version contains the build version information set by linker flags.
-	Version = "dev"
-	// GitCommit contains the git commit hash set by linker flags.
-	GitCommit = "unknown"
-	// BuildTime contains the build timestamp set by linker flags.
-	BuildTime = "unknown"
+	// version contains the build version information set by linker flags.
+	version = "dev"
+	// gitCommit contains the git commit hash set by linker flags.
+	gitCommit = "unknown"
+	// buildTime contains the build timestamp set by linker flags.
+	buildTime = "unknown"
+	// goVersion contains the Go version used to build the binary.
+	goVersion = "unknown"
 )
 
 func main() {
@@ -44,7 +46,7 @@ func main() {
 		authShort    = flag.String("a", getEnvString("GOFS_AUTH", ""), "Basic auth (shorthand)")
 		help         = flag.Bool("help", false, "Show help")
 		helpShort    = flag.Bool("h", false, "Show help (shorthand)")
-		version      = flag.Bool("version", false, "Show version")
+		versionFlag  = flag.Bool("version", false, "Show version")
 		versionShort = flag.Bool("v", false, "Show version (shorthand)")
 		healthCheck  = flag.Bool("health-check", false, "Perform health check and exit")
 	)
@@ -57,7 +59,7 @@ func main() {
 		return
 	}
 
-	if *version || *versionShort {
+	if *versionFlag || *versionShort {
 		showVersion()
 		return
 	}
@@ -99,8 +101,9 @@ func main() {
 
 	// Setup structured logging with slog
 	logger := setupLogger()
+
 	logger.Info("Starting gofs server",
-		slog.String("version", Version),
+		slog.String("version", version),
 		slog.String("address", cfg.Address()),
 		slog.String("directory", cfg.Dir),
 		slog.Bool("auth_enabled", finalAuth != ""),
@@ -185,9 +188,10 @@ func showHelp() {
 }
 
 func showVersion() {
-	fmt.Printf("gofs %s\n", Version)
-	fmt.Printf("Git commit: %s\n", GitCommit)
-	fmt.Printf("Build time: %s\n", BuildTime)
+	fmt.Printf("gofs %s\n", version)
+	fmt.Printf("Git commit: %s\n", gitCommit)
+	fmt.Printf("Build time: %s\n", buildTime)
+	fmt.Printf("Go version: %s\n", goVersion)
 }
 
 // Environment variable helper functions
@@ -216,24 +220,35 @@ func getEnvBool(key string, defaultValue bool) bool {
 	return defaultValue
 }
 
-// performHealthCheck performs a comprehensive health check
+// performHealthCheck performs a lightweight health check via HTTP
 func performHealthCheck() error {
-	// Test configuration loading
-	testCfg, err := config.New(8000, "127.0.0.1", ".", "default", false)
+	// Default health check endpoint
+	healthURL := "http://127.0.0.1:8000/healthz"
+
+	// Check if custom host/port is configured via environment
+	if host := os.Getenv("GOFS_HOST"); host != "" {
+		port := os.Getenv("GOFS_PORT")
+		if port == "" {
+			port = "8000"
+		}
+		healthURL = fmt.Sprintf("http://%s:%s/healthz", host, port)
+	}
+
+	// Create HTTP client with timeout
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+	}
+
+	// Perform health check request
+	resp, err := client.Get(healthURL)
 	if err != nil {
-		return fmt.Errorf("configuration error: %w", err)
+		return fmt.Errorf("health check request failed: %w", err)
 	}
+	defer resp.Body.Close()
 
-	// Test filesystem access
-	testFS := filesystem.NewLocal(testCfg.Dir, false)
-	if _, err := testFS.ReadDir("/"); err != nil {
-		return fmt.Errorf("filesystem access error: %w", err)
-	}
-
-	// Test logger initialization
-	logger := setupLogger()
-	if logger == nil {
-		return errors.New("logger initialization failed")
+	// Check response status
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("health check failed with status: %d", resp.StatusCode)
 	}
 
 	return nil

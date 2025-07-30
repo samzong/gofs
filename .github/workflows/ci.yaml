@@ -12,6 +12,9 @@ jobs:
   check:
     if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
     steps:
     - uses: actions/checkout@v4
     
@@ -21,11 +24,51 @@ jobs:
         go-version: '1.24'
         cache: true
 
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: go
+        queries: security-and-quality
+
     - name: Run quality checks
       uses: golangci/golangci-lint-action@v8.0.0
     
     - name: Run unit tests
       run: make test
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+
+    - name: Run OWASP Dependency Check
+      uses: dependency-check/Dependency-Check_Action@main
+      id: depcheck
+      with:
+        project: 'gofs'
+        path: '.'
+        format: 'SARIF'
+        out: 'dependency-check-results.sarif'
+
+    - name: Upload OWASP Dependency Check results
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: dependency-check-results.sarif
+
+    - name: Run Semgrep Security Scan
+      uses: returntocorp/semgrep-action@v1
+      with:
+        config: >-
+          p/security-audit
+          p/secrets
+          p/golang
+        sarif: true
+        output: semgrep-results.sarif
+
+    - name: Upload Semgrep results
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: semgrep-results.sarif
 
   # Build and release for tags using GoReleaser
   release:
@@ -33,6 +76,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      packages: write
+      id-token: write  # Required for Cosign signing
     steps:
     - uses: actions/checkout@v4
       with:
@@ -43,6 +88,30 @@ jobs:
       with:
         go-version: '1.24'
         cache: true
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
       
     - name: Run GoReleaser
       uses: goreleaser/goreleaser-action@v6
@@ -53,3 +122,46 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         GO_VERSION: ${{ steps.go.outputs.go-version }}
+
+    - name: Scan Docker images with Trivy
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: 'ghcr.io/${{ github.repository }}:${{ github.ref_name }}'
+        format: 'sarif'
+        output: 'trivy-image-results.sarif'
+
+    - name: Upload Docker image scan results
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: 'trivy-image-results.sarif'
+
+    - name: Install Syft for SBOM generation
+      uses: anchore/sbom-action/download-syft@v0.15.9
+
+    - name: Generate SBOM for source code
+      run: syft . -o spdx-json=sbom-source.spdx.json
+
+    - name: Generate SBOM for Docker image
+      run: syft ghcr.io/${{ github.repository }}:${{ github.ref_name }} -o spdx-json=sbom-image.spdx.json
+
+    - name: Install Cosign for container signing
+      uses: sigstore/cosign-installer@v3.4.0
+
+    - name: Sign container image with Cosign
+      run: |
+        cosign sign --yes ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+        cosign sign --yes ghcr.io/${{ github.repository }}:latest
+
+    - name: Attest SBOM to container image
+      run: |
+        cosign attest --yes --predicate sbom-image.spdx.json --type spdxjson ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+        cosign attest --yes --predicate sbom-image.spdx.json --type spdxjson ghcr.io/${{ github.repository }}:latest
+
+    - name: Upload SBOM artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: sbom-files
+        path: |
+          sbom-source.spdx.json
+          sbom-image.spdx.json
