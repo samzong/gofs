@@ -4,6 +4,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"sync"
@@ -19,6 +20,7 @@ type Server struct {
 	handler  http.Handler
 	server   *http.Server
 	listener net.Listener
+	logger   *slog.Logger
 	mu       sync.RWMutex
 }
 
@@ -27,41 +29,102 @@ func healthCheckMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/healthz" || r.URL.Path == "/readyz" {
 			w.WriteHeader(http.StatusOK)
+			fmt.Fprint(w, "OK")
 			return
 		}
 		next.ServeHTTP(w, r)
 	})
 }
 
+// loggingMiddleware provides simple HTTP request logging using slog
+func loggingMiddleware(logger *slog.Logger) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			start := time.Now()
+
+			// Wrap the ResponseWriter to capture status code
+			wrapped := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+
+			next.ServeHTTP(wrapped, r)
+
+			duration := time.Since(start)
+			logger.Info("HTTP request",
+				slog.String("method", r.Method),
+				slog.String("path", r.URL.Path),
+				slog.String("remote_addr", r.RemoteAddr),
+				slog.Int("status", wrapped.statusCode),
+				slog.Duration("duration", duration),
+			)
+		})
+	}
+}
+
+// responseWriter wraps http.ResponseWriter to capture status code
+type responseWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (rw *responseWriter) WriteHeader(code int) {
+	rw.statusCode = code
+	rw.ResponseWriter.WriteHeader(code)
+}
+
 // New creates a new HTTP server instance with the given configuration and handler.
 // The authMiddleware parameter is optional; if nil, no authentication is required.
-func New(cfg *config.Config, handler http.Handler, authMiddleware *middleware.BasicAuth) *Server {
-	// Wrap handler with authentication middleware if provided
+func New(cfg *config.Config, handler http.Handler, authMiddleware *middleware.BasicAuth, logger *slog.Logger) *Server {
+	if logger == nil {
+		logger = slog.Default()
+	}
+
+	componentLogger := logger.With(slog.String("component", "server"))
+
+	// Build middleware chain
 	var finalHandler = handler
+
+	// Add health check middleware (first in chain)
+	finalHandler = healthCheckMiddleware(finalHandler)
+
+	// Add authentication middleware if provided
 	if authMiddleware != nil {
 		finalHandler = authMiddleware.Middleware(finalHandler)
 	}
 
-	// Add health check middleware
-	finalHandler = healthCheckMiddleware(finalHandler)
+	// Add HTTP request logging middleware (last in chain)
+	finalHandler = loggingMiddleware(componentLogger)(finalHandler)
+
+	componentLogger.Info("Server initialized",
+		slog.String("host", cfg.Host),
+		slog.Int("port", cfg.Port),
+		slog.String("dir", cfg.Dir),
+		slog.Bool("auth_enabled", authMiddleware != nil),
+	)
 
 	return &Server{
 		config:  cfg,
 		handler: finalHandler,
+		logger:  componentLogger,
 	}
 }
 
 // Start starts the HTTP server and begins accepting connections.
 // This method blocks until the server is shut down or an error occurs.
 func (s *Server) Start() error {
-	ctx := context.Background()
-
 	// Create listener
 	addr := s.config.Address()
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
+		s.logger.Error("Failed to create listener",
+			slog.String("address", addr),
+			slog.Any("error", err),
+		)
 		return fmt.Errorf("failed to listen on %s: %w", addr, err)
 	}
+
+	s.logger.Info("Server listener created",
+		slog.String("address", addr),
+		slog.String("network", "tcp"),
+	)
 
 	s.mu.Lock()
 	s.listener = listener
@@ -71,14 +134,23 @@ func (s *Server) Start() error {
 		ReadTimeout:  time.Duration(s.config.RequestTimeout) * time.Second,
 		WriteTimeout: time.Duration(s.config.RequestTimeout) * time.Second,
 		IdleTimeout:  120 * time.Second,
-		BaseContext: func(net.Listener) context.Context {
-			return ctx
-		},
+		ErrorLog:     nil, // Disable default logging in favor of structured logging
 	}
 	s.mu.Unlock()
 
+	s.logger.Info("Server starting",
+		slog.String("address", addr),
+		slog.Duration("read_timeout", time.Duration(s.config.RequestTimeout)*time.Second),
+		slog.Duration("write_timeout", time.Duration(s.config.RequestTimeout)*time.Second),
+		slog.Duration("idle_timeout", 120*time.Second),
+	)
+
 	// Start serving
 	if err := s.server.Serve(listener); err != nil {
+		s.logger.Error("Server serve error",
+			slog.String("address", addr),
+			slog.Any("error", err),
+		)
 		return fmt.Errorf("server failed to serve: %w", err)
 	}
 	return nil
@@ -91,11 +163,17 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	defer s.mu.RUnlock()
 
 	if s.server == nil {
+		s.logger.Warn("Shutdown called on nil server")
 		return nil
 	}
 
+	s.logger.Info("Server shutdown initiated")
+
 	if err := s.server.Shutdown(ctx); err != nil {
+		s.logger.Error("Server shutdown failed", slog.Any("error", err))
 		return fmt.Errorf("server shutdown failed: %w", err)
 	}
+
+	s.logger.Info("Server shutdown completed")
 	return nil
 }

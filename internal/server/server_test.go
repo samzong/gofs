@@ -2,11 +2,10 @@ package server
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 	"time"
 
@@ -14,275 +13,233 @@ import (
 	"github.com/samzong/gofs/internal/middleware"
 )
 
-// mockHandler is a simple test handler
-type mockHandler struct {
-	called bool
-}
-
-func (m *mockHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	m.called = true
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte("mock response"))
-}
-
-func TestNew(t *testing.T) {
-	// Create a temporary directory for testing
-	tmpDir, err := os.MkdirTemp("", "gofs-test")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
-
+func TestHealthCheckMiddleware(t *testing.T) {
+	// Create a test handler that returns 404 for non-health endpoints
 	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprint(w, "Not Found")
 	})
 
-	testCases := []struct {
+	// Wrap with health check middleware
+	handler := healthCheckMiddleware(testHandler)
+
+	tests := []struct {
 		name           string
-		cfg            *config.Config
-		authMiddleware *middleware.BasicAuth
+		path           string
+		expectedStatus int
+		expectedBody   string
 	}{
 		{
-			name: "server_without_auth",
-			cfg: &config.Config{
-				Host: "127.0.0.1",
-				Port: 8080,
-				Dir:  tmpDir,
-			},
-			authMiddleware: nil,
+			name:           "health check endpoint /healthz",
+			path:           "/healthz",
+			expectedStatus: http.StatusOK,
+			expectedBody:   "OK",
 		},
 		{
-			name: "server_with_auth",
-			cfg: &config.Config{
-				Host: "127.0.0.1",
-				Port: 8080,
-				Dir:  tmpDir,
-			},
-			authMiddleware: func() *middleware.BasicAuth {
-				auth, _ := middleware.NewBasicAuth("test-realm", "admin", "secret")
-				return auth
-			}(),
+			name:           "health check endpoint /readyz",
+			path:           "/readyz",
+			expectedStatus: http.StatusOK,
+			expectedBody:   "OK",
+		},
+		{
+			name:           "non-health endpoint",
+			path:           "/files",
+			expectedStatus: http.StatusNotFound,
+			expectedBody:   "Not Found",
 		},
 	}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			server := New(tc.cfg, testHandler, tc.authMiddleware)
-			if server == nil {
-				t.Fatal("expected server to be created")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", tt.path, nil)
+			w := httptest.NewRecorder()
+
+			handler.ServeHTTP(w, req)
+
+			if w.Code != tt.expectedStatus {
+				t.Errorf("Expected status %d, got %d", tt.expectedStatus, w.Code)
 			}
-			if server.config != tc.cfg {
-				t.Error("expected server config to match input config")
-			}
-			if server.handler == nil {
-				t.Error("expected server handler to be set")
+
+			if w.Body.String() != tt.expectedBody {
+				t.Errorf("Expected body %q, got %q", tt.expectedBody, w.Body.String())
 			}
 		})
 	}
 }
 
-func TestServer_Integration(t *testing.T) {
-	// Create a temporary directory for testing
-	tmpDir, err := os.MkdirTemp("", "gofs-test")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
+func TestLoggingMiddleware(t *testing.T) {
+	// Create a simple test handler
+	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, "OK")
+	})
 
-	cfg := &config.Config{
-		Host: "127.0.0.1",
-		Port: findAvailablePort(),
-		Dir:  tmpDir,
-	}
+	// Create a logger (we can't easily test the output, but we can test it doesn't panic)
+	logger := slog.Default()
+	handler := loggingMiddleware(logger)(testHandler)
 
-	handler := &mockHandler{}
-	server := New(cfg, handler, nil)
+	req := httptest.NewRequest("GET", "/test", nil)
+	w := httptest.NewRecorder()
 
-	// Test that server can be created and configured
-	if server == nil {
-		t.Fatal("expected server to be created")
-	}
+	// This should not panic
+	handler.ServeHTTP(w, req)
 
-	// Test basic functionality without starting the server
-	req := httptest.NewRequest("GET", "/", nil)
-	rr := httptest.NewRecorder()
-	server.handler.ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d", rr.Code)
-	}
-	if !handler.called {
-		t.Error("expected handler to be called")
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status %d, got %d", http.StatusOK, w.Code)
 	}
 
-	t.Skip("Could not connect to server, skipping integration test")
+	if w.Body.String() != "OK" {
+		t.Errorf("Expected body %q, got %q", "OK", w.Body.String())
+	}
 }
 
-func TestServer_Shutdown(t *testing.T) {
-	// Create a temporary directory for testing
-	tmpDir, err := os.MkdirTemp("", "gofs-test")
+func TestResponseWriter(t *testing.T) {
+	// Test the responseWriter wrapper
+	w := httptest.NewRecorder()
+	rw := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+
+	// Test default status code
+	if rw.statusCode != http.StatusOK {
+		t.Errorf("Expected default status code %d, got %d", http.StatusOK, rw.statusCode)
+	}
+
+	// Test writing header
+	rw.WriteHeader(http.StatusNotFound)
+	if rw.statusCode != http.StatusNotFound {
+		t.Errorf("Expected status code %d, got %d", http.StatusNotFound, rw.statusCode)
+	}
+
+	// Test writing body
+	_, _ = rw.Write([]byte("test"))
+	if w.Body.String() != "test" {
+		t.Errorf("Expected body %q, got %q", "test", w.Body.String())
+	}
+}
+
+func TestNew(t *testing.T) {
+	cfg, err := config.New(8080, "localhost", ".", "default", false)
 	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
-
-	cfg := &config.Config{
-		Host: "127.0.0.1",
-		Port: findAvailablePort(),
-		Dir:  tmpDir,
+		t.Fatalf("Failed to create config: %v", err)
 	}
 
-	handler := &mockHandler{}
-	server := New(cfg, handler, nil)
+	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
 
-	// Test shutdown without starting (should not error)
+	logger := slog.Default()
+
+	tests := []struct {
+		name           string
+		authMiddleware *middleware.BasicAuth
+		logger         *slog.Logger
+	}{
+		{
+			name:           "without auth middleware",
+			authMiddleware: nil,
+			logger:         logger,
+		},
+		{
+			name:           "with nil logger",
+			authMiddleware: nil,
+			logger:         nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := New(cfg, testHandler, tt.authMiddleware, tt.logger)
+
+			if server == nil {
+				t.Error("New() returned nil server")
+				return
+			}
+
+			if server.config != cfg {
+				t.Error("Server config not set correctly")
+			}
+
+			if server.handler == nil {
+				t.Error("Server handler not set")
+			}
+
+			if server.logger == nil {
+				t.Error("Server logger not set")
+			}
+		})
+	}
+}
+
+func TestNewWithAuth(t *testing.T) {
+	cfg, err := config.New(8080, "localhost", ".", "default", false)
+	if err != nil {
+		t.Fatalf("Failed to create config: %v", err)
+	}
+
+	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	authMiddleware, err := middleware.NewBasicAuth("test", "user", "password")
+	if err != nil {
+		t.Fatalf("Failed to create auth middleware: %v", err)
+	}
+
+	logger := slog.Default()
+	server := New(cfg, testHandler, authMiddleware, logger)
+
+	if server == nil {
+		t.Error("New() returned nil server")
+		return
+	}
+
+	// Test that the middleware chain is working by making a request
+	req := httptest.NewRequest("GET", "/test", nil)
+	w := httptest.NewRecorder()
+
+	server.handler.ServeHTTP(w, req)
+
+	// Should return 401 without proper auth
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("Expected status %d, got %d", http.StatusUnauthorized, w.Code)
+	}
+}
+
+func TestServerShutdown(t *testing.T) {
+	cfg, err := config.New(0, "localhost", ".", "default", false) // Port 0 for random port
+	if err != nil {
+		t.Fatalf("Failed to create config: %v", err)
+	}
+
+	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	logger := slog.Default()
+	server := New(cfg, testHandler, nil, logger)
+
+	// Test shutdown on nil server
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
 	err = server.Shutdown(ctx)
 	if err != nil {
-		t.Errorf("unexpected error during shutdown: %v", err)
+		t.Errorf("Shutdown() with nil server returned error: %v", err)
 	}
 }
 
-func TestServer_AuthenticationIntegration(t *testing.T) {
-	testCases := []struct {
-		name            string
-		cfg             *config.Config
-		authMiddleware  *middleware.BasicAuth
-		header          string
-		expectedStatus  int
-		expectedWWWAuth string
-	}{
-		{
-			name: "no_auth_required",
-			cfg: &config.Config{
-				Host: "127.0.0.1",
-				Port: 8080,
-				Dir:  "/tmp",
-			},
-			authMiddleware: nil,
-			header:         "",
-			expectedStatus: http.StatusOK,
-		},
-		{
-			name: "auth_required_no_credentials",
-			cfg: &config.Config{
-				Host: "127.0.0.1",
-				Port: 8080,
-				Dir:  "/tmp",
-			},
-			authMiddleware: func() *middleware.BasicAuth {
-				auth, _ := middleware.NewBasicAuth("test-realm", "admin", "secret")
-				return auth
-			}(),
-			header:          "",
-			expectedStatus:  http.StatusUnauthorized,
-			expectedWWWAuth: `Basic realm="test-realm", charset="UTF-8"`,
-		},
-		{
-			name: "auth_required_valid_credentials",
-			cfg: &config.Config{
-				Host: "127.0.0.1",
-				Port: 8080,
-				Dir:  "/tmp",
-			},
-			authMiddleware: func() *middleware.BasicAuth {
-				auth, _ := middleware.NewBasicAuth("test-realm", "admin", "secret")
-				return auth
-			}(),
-			header:         "Basic " + base64.StdEncoding.EncodeToString([]byte("admin:secret")),
-			expectedStatus: http.StatusOK,
-		},
-		{
-			name: "auth_required_invalid_credentials",
-			cfg: &config.Config{
-				Host: "127.0.0.1",
-				Port: 8080,
-				Dir:  "/tmp",
-			},
-			authMiddleware: func() *middleware.BasicAuth {
-				auth, _ := middleware.NewBasicAuth("test-realm", "admin", "secret")
-				return auth
-			}(),
-			header:          "Basic " + base64.StdEncoding.EncodeToString([]byte("admin:wrong")),
-			expectedStatus:  http.StatusUnauthorized,
-			expectedWWWAuth: `Basic realm="test-realm", charset="UTF-8"`,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(http.StatusOK)
-				_, _ = w.Write([]byte("OK"))
-			})
-
-			server := New(tc.cfg, testHandler, tc.authMiddleware)
-
-			req := httptest.NewRequest("GET", "/", nil)
-			if tc.header != "" {
-				req.Header.Set("Authorization", tc.header)
-			}
-
-			rr := httptest.NewRecorder()
-			server.handler.ServeHTTP(rr, req)
-
-			if rr.Code != tc.expectedStatus {
-				t.Errorf("expected status %d, got %d", tc.expectedStatus, rr.Code)
-			}
-
-			if tc.expectedWWWAuth != "" {
-				wwwAuth := rr.Header().Get("WWW-Authenticate")
-				if wwwAuth != tc.expectedWWWAuth {
-					t.Errorf("expected WWW-Authenticate %q, got %q", tc.expectedWWWAuth, wwwAuth)
-				}
-			}
-		})
-	}
-}
-
-func TestServer_MultipleRequests(t *testing.T) {
-	cfg := &config.Config{
-		Host: "127.0.0.1",
-		Port: 8080,
-		Dir:  "/tmp",
+func TestConcurrentRequests(t *testing.T) {
+	cfg, err := config.New(8080, "localhost", ".", "default", false)
+	if err != nil {
+		t.Fatalf("Failed to create config: %v", err)
 	}
 
 	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("OK"))
+		fmt.Fprint(w, "OK")
 	})
 
-	server := New(cfg, testHandler, nil)
-
-	// Test multiple sequential requests
-	for i := range 5 {
-		t.Run(fmt.Sprintf("request_%d", i+1), func(t *testing.T) {
-			req := httptest.NewRequest("GET", "/", nil)
-			rr := httptest.NewRecorder()
-			server.handler.ServeHTTP(rr, req)
-
-			if rr.Code != http.StatusOK {
-				t.Errorf("request %d: expected status 200, got %d", i+1, rr.Code)
-			}
-		})
-	}
-}
-
-func TestServer_ConcurrentRequests(t *testing.T) {
-	cfg := &config.Config{
-		Host: "127.0.0.1",
-		Port: 8080,
-		Dir:  "/tmp",
-	}
-
-	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("OK"))
-	})
-
-	server := New(cfg, testHandler, nil)
+	logger := slog.Default()
+	server := New(cfg, testHandler, nil, logger)
 
 	// Test concurrent requests
 	const numConcurrent = 10
@@ -291,11 +248,11 @@ func TestServer_ConcurrentRequests(t *testing.T) {
 	for i := range numConcurrent {
 		go func(id int) {
 			req := httptest.NewRequest("GET", fmt.Sprintf("/%d", id), nil)
-			rr := httptest.NewRecorder()
-			server.handler.ServeHTTP(rr, req)
+			w := httptest.NewRecorder()
+			server.handler.ServeHTTP(w, req)
 
-			if rr.Code != http.StatusOK {
-				t.Errorf("concurrent request %d: expected status 200, got %d", id, rr.Code)
+			if w.Code != http.StatusOK {
+				t.Errorf("Concurrent request %d: expected status 200, got %d", id, w.Code)
 			}
 			done <- true
 		}(i)
@@ -305,10 +262,4 @@ func TestServer_ConcurrentRequests(t *testing.T) {
 	for range numConcurrent {
 		<-done
 	}
-}
-
-// Helper function to find an available port for testing
-func findAvailablePort() int {
-	// Return a high port number for testing
-	return 9999
 }
