@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-with-gofs
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:latest
+          ports:
+            - containerPort: 3000
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+        - name: gofs
+          image: ghcr.io/samzong/gofs:latest
+          args:
+            - "--host=0.0.0.0"
+            - "--port=8000"
+            - "--dir=/"
+          # env:
+          #   - name: GOFS_AUTH
+          #     value: "user:password"
+          ports:
+            - containerPort: 8000
+          livenessProbe:
+            exec:
+              command: ["/gofs", "--health-check"]
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            exec:
+              command: ["/gofs", "--health-check"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-service
+spec:
+  selector:
+    app: nginx
+  ports:
+    - name: app-http
+      port: 80
+      targetPort: 3000
+    - name: files-http
+      port: 8000
+      targetPort: 8000
+  type: NodePort

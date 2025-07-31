@@ -75,8 +75,15 @@ func NewBasicAuthFromCredentials(credentials string) (*BasicAuth, error) {
 
 // Middleware returns an HTTP middleware function that enforces Basic Authentication.
 // It returns 401 Unauthorized for missing or invalid credentials.
+// Health check endpoints (/healthz, /readyz) are excluded from authentication.
 func (ba *BasicAuth) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Skip authentication for health check endpoints
+		if r.URL.Path == "/healthz" || r.URL.Path == "/readyz" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
 		// Extract Authorization header
 		auth := r.Header.Get("Authorization")
 		if auth == "" {
