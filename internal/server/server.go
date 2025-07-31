@@ -51,7 +51,7 @@ func loggingMiddleware(logger *slog.Logger) func(http.Handler) http.Handler {
 			duration := time.Since(start)
 			logger.Info("HTTP request",
 				slog.String("method", r.Method),
-				slog.String("path", r.URL.Path),
+				slog.String("path", fmt.Sprintf("%q", r.URL.Path)),
 				slog.String("remote_addr", r.RemoteAddr),
 				slog.Int("status", wrapped.statusCode),
 				slog.Duration("duration", duration),

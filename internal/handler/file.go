@@ -114,7 +114,7 @@ func (h *File) handleFile(w http.ResponseWriter, _ *http.Request, path string) {
 		if closeErr := file.Close(); closeErr != nil {
 			// Log error but don't fail the request as data may have been sent
 			// In production, this should use structured logging
-			fmt.Printf("Warning: Failed to close file %s: %v\n", path, closeErr)
+			fmt.Printf("Warning: Failed to close file %q: %v\n", path, closeErr)
 		}
 	}()
 
