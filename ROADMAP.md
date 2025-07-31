@@ -1,6 +1,6 @@
 # GOFS Simple Roadmap
 
-_Last updated: 2025-07-29_
+_Last updated: 2025-07-31_
 
 ## Quick Wins
 
@@ -12,23 +12,23 @@ _Last updated: 2025-07-29_
 
 ### 2. Health Check (Easy)
 
-- [ ] Add `/health` endpoint - returns 200 OK
-- [ ] Add basic metrics: uptime, version
-- [ ] No external dependencies
+- [x] Add `/health` endpoint - returns 200 OK
+- [x] Add basic metrics: uptime, version
+- [x] No external dependencies
 
 ## Medium Effort
 
 ### 3. Docker Support
 
-- [ ] Simple Dockerfile (single stage, small image)
-- [ ] Basic docker-compose.yml for local dev
-- [ ] Environment variable config
+- [x] Simple Dockerfile (single stage, small image)
+- [x] Basic docker-compose.yml for local dev
+- [x] Environment variable config
 
 ### 4. Simple Metrics
 
-- [ ] Add `/metrics` endpoint with basic counters
-- [ ] Track: requests total, request duration, errors
-- [ ] Text format (Prometheus compatible)
+- [x] Add `/metrics` endpoint with basic counters
+- [x] Track: requests total, request duration, errors
+- [x] Text format (Prometheus compatible)
 
 ## Later (When needed)
 
@@ -36,10 +36,10 @@ _Last updated: 2025-07-29_
 
 - [ ] Allow multiple root directories via config
 - [ ] Simple path mapping
-- [ ] No fancy features
+- [x] No fancy features
 
 ### 6. Cloud Storage (Future)
 
 - [ ] Start with S3-compatible storage
 - [ ] Simple interface, one backend at a time
-- [ ] Keep local storage as default
+- [x] Keep local storage as default
