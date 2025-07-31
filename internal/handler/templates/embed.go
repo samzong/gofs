@@ -28,6 +28,8 @@ var DefaultCSS string
 // GetThemeCSS returns the CSS content for the specified theme.
 // Only supports enterprise-grade 'classic' and 'default' themes.
 // Falls back to the default theme if the theme is not recognized.
+// Note: This function returns safe, embedded CSS content with no user input.
+// nosemgrep: go.lang.security.template.no-unescaped-template-extension
 func GetThemeCSS(theme string) string {
 	switch theme {
 	case "classic":
