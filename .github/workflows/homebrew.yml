@@ -28,14 +28,19 @@ jobs:
       pull-requests: write
     steps:
       - name: Set version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "VERSION=${{ inputs.tag }}" >> $GITHUB_ENV
-          elif [ "${{ github.event_name }}" = "release" ]; then
-            echo "VERSION=${{ github.event.release.tag_name }}" >> $GITHUB_ENV
-          elif [ "${{ github.event_name }}" = "workflow_run" ]; then
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "VERSION=$INPUT_TAG" >> $GITHUB_ENV
+          elif [ "$EVENT_NAME" = "release" ]; then
+            echo "VERSION=$RELEASE_TAG" >> $GITHUB_ENV
+          elif [ "$EVENT_NAME" = "workflow_run" ]; then
             # Extract version from workflow_run head_branch (refs/tags/v1.0.0 -> v1.0.0)
-            VERSION=$(echo "${{ github.event.workflow_run.head_branch }}" | sed 's/refs\/tags\///')
+            VERSION=$(echo "$HEAD_BRANCH" | sed 's/refs\/tags\///')
             echo "VERSION=$VERSION" >> $GITHUB_ENV
           fi
           echo "Detected version: $VERSION"
