@@ -186,7 +186,7 @@ install-hooks: ## Install Git pre-commit hooks
 .PHONY: clean
 clean: ## Clean build artifacts and test outputs
 	@echo "$(BLUE)Cleaning build artifacts and test outputs...$(NC)"
-	@rm -rf $(BUILD_DIR)
+	@rm -rf $(BUILD_DIR) gofs dist
 	@echo "$(GREEN)Cleanup completed$(NC)"
 
 ##@ Docker
