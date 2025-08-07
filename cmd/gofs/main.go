@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -47,13 +48,10 @@ func main() {
 	}
 
 	if flags.HealthCheck {
-		if err := performHealthCheck(); err != nil {
-			fmt.Fprintf(os.Stderr, "Health check FAILED: %v\n", err)
+		if err := performHealthCheckAndExit(); err != nil {
 			os.Exit(1)
 		}
-		fmt.Println("Health check: OK")
 		os.Exit(0)
-		return
 	}
 
 	// Create configuration
@@ -93,7 +91,7 @@ func main() {
 	if cfg.Theme == "advanced" {
 		fileHandler = handler.NewAdvancedFile(fs, cfg)
 	} else {
-		fileHandler = handler.NewFile(fs, cfg)
+		fileHandler = handler.NewFile(fs, cfg, logger)
 	}
 
 	srv := server.New(cfg, fileHandler, authMiddleware, logger)
@@ -319,4 +317,29 @@ func parseLogLevel(level string) slog.Level {
 	default:
 		return slog.LevelInfo
 	}
+}
+
+type HealthResult struct {
+	Status    string    `json:"status"`
+	Timestamp time.Time `json:"timestamp"`
+	Error     string    `json:"error,omitempty"`
+}
+
+func performHealthCheckAndExit() error {
+	if err := performHealthCheck(); err != nil {
+		result := HealthResult{
+			Status:    "FAILED",
+			Timestamp: time.Now(),
+			Error:     err.Error(),
+		}
+		_ = json.NewEncoder(os.Stdout).Encode(result)
+		return err
+	}
+
+	result := HealthResult{
+		Status:    "OK",
+		Timestamp: time.Now(),
+	}
+	_ = json.NewEncoder(os.Stdout).Encode(result)
+	return nil
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"log/slog"
 	"net/http"
 	"path/filepath"
 	"sort"
@@ -23,13 +24,15 @@ import (
 type File struct {
 	fs     internal.FileSystem
 	config *config.Config
+	logger *slog.Logger
 }
 
 // NewFile creates a new file handler with the given file system and configuration.
-func NewFile(fs internal.FileSystem, cfg *config.Config) *File {
+func NewFile(fs internal.FileSystem, cfg *config.Config, logger *slog.Logger) *File {
 	return &File{
 		fs:     fs,
 		config: cfg,
+		logger: logger,
 	}
 }
 
@@ -137,8 +140,11 @@ func (h *File) handleFile(w http.ResponseWriter, _ *http.Request, path string) {
 // closeFile handles safe file closing with error logging.
 func (h *File) closeFile(file io.ReadCloser, path string) {
 	if err := file.Close(); err != nil {
-		// Log error but don't fail the request as data may have been sent
-		fmt.Printf("Warning: Failed to close file %q: %v\n", path, err)
+		h.logger.Warn("File close failed",
+			slog.String("path", path),
+			slog.String("error", err.Error()),
+			slog.String("component", "file_handler"),
+		)
 	}
 }
 
