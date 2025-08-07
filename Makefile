@@ -42,6 +42,56 @@ PURPLE := \033[0;35m
 CYAN := \033[0;36m
 NC := \033[0m
 
+##@ Dependencies Management
+# ------------------------------------------------------------------------------
+# Function to check and install Go tools
+# Usage: $(call ensure-go-tool,tool-name,install-command)
+define ensure-go-tool
+	@if ! command -v $(1) >/dev/null 2>&1; then \
+		echo "$(YELLOW)Installing $(1)...$(NC)"; \
+		$(2); \
+	fi
+endef
+
+# Function to check and install external tools via script
+# Usage: $(call ensure-external-tool,tool-name,install-script)
+define ensure-external-tool
+	@if ! command -v $(1) >/dev/null 2>&1; then \
+		echo "$(YELLOW)Installing $(1)...$(NC)"; \
+		$(2); \
+	fi
+endef
+
+# Dependency installation commands
+GOIMPORTS_INSTALL := go install golang.org/x/tools/cmd/goimports@latest
+GOLANGCI_LINT_INSTALL := curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $$(go env GOPATH)/bin latest
+
+.PHONY: install-deps
+install-deps: ## Install all development dependencies
+	@echo "$(BLUE)Installing development dependencies...$(NC)"
+	$(call ensure-go-tool,goimports,$(GOIMPORTS_INSTALL))
+	$(call ensure-external-tool,golangci-lint,$(GOLANGCI_LINT_INSTALL))
+	@echo "$(GREEN)All dependencies installed$(NC)"
+
+.PHONY: check-deps
+check-deps: ## Check if all required dependencies are installed
+	@echo "$(BLUE)Checking development dependencies...$(NC)"
+	@missing_deps=""; \
+	for tool in goimports golangci-lint; do \
+		if ! command -v $$tool >/dev/null 2>&1; then \
+			missing_deps="$$missing_deps $$tool"; \
+		else \
+			echo "$(GREEN)✓ $$tool is installed$(NC)"; \
+		fi; \
+	done; \
+	if [ -n "$$missing_deps" ]; then \
+		echo "$(RED)✗ Missing dependencies:$$missing_deps$(NC)"; \
+		echo "$(YELLOW)Run 'make install-deps' to install missing dependencies$(NC)"; \
+		exit 1; \
+	else \
+		echo "$(GREEN)All dependencies are installed$(NC)"; \
+	fi
+
 ##@ General
 .PHONY: help
 help: ## Display available commands
@@ -51,30 +101,21 @@ help: ## Display available commands
 .PHONY: fmt
 fmt: ## Format Go code with goimports
 	@echo "$(BLUE)Formatting Go code...$(NC)"
-	@if ! command -v goimports >/dev/null 2>&1; then \
-		echo "$(YELLOW)Installing goimports...$(NC)"; \
-		go install golang.org/x/tools/cmd/goimports@latest; \
-	fi
+	$(call ensure-go-tool,goimports,$(GOIMPORTS_INSTALL))
 	@goimports -w -local $(PROJECT_NAME) .
 	@echo "$(GREEN)Code formatting completed$(NC)"
 
 .PHONY: lint
 lint: ## Run golangci-lint code analysis
 	@echo "$(BLUE)Running code analysis...$(NC)"
-	@if ! command -v golangci-lint >/dev/null 2>&1; then \
-		echo "$(YELLOW)Installing golangci-lint...$(NC)"; \
-		curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $$(go env GOPATH)/bin v1.55.2; \
-	fi
+	$(call ensure-external-tool,golangci-lint,$(GOLANGCI_LINT_INSTALL))
 	golangci-lint run
 	@echo "$(GREEN)Code analysis completed$(NC)"
 
 .PHONY: lint-fix
 lint-fix: ## Run golangci-lint with auto-fix
 	@echo "$(BLUE)Running code analysis with auto-fix...$(NC)"
-	@if ! command -v golangci-lint >/dev/null 2>&1; then \
-		echo "$(YELLOW)Installing golangci-lint...$(NC)"; \
-		curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $$(go env GOPATH)/bin v1.55.2; \
-	fi
+	$(call ensure-external-tool,golangci-lint,$(GOLANGCI_LINT_INSTALL))
 	golangci-lint run --fix
 	@echo "$(GREEN)Code analysis and fixes completed$(NC)"
 
