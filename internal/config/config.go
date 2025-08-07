@@ -1,4 +1,3 @@
-// Package config provides configuration management for the gofs HTTP file server.
 package config
 
 import (
@@ -7,13 +6,12 @@ import (
 	"path/filepath"
 )
 
-// Valid themes for the file server UI
 var validThemes = map[string]bool{
-	"default": true,
-	"classic": true,
+	"default":  true,
+	"classic":  true,
+	"advanced": true,
 }
 
-// Config holds the server configuration.
 type Config struct {
 	Host           string
 	Dir            string
@@ -25,8 +23,6 @@ type Config struct {
 	ShowHidden     bool
 }
 
-// New creates a new configuration with the provided values.
-// Zero values are replaced with sensible defaults.
 func New(port int, host, dir, theme string, showHidden bool) (*Config, error) {
 	cfg := &Config{
 		Port:       port,
@@ -43,7 +39,6 @@ func New(port int, host, dir, theme string, showHidden bool) (*Config, error) {
 	return cfg, nil
 }
 
-// setDefaults applies default values for zero-value fields.
 func (c *Config) setDefaults() {
 	if c.Port == 0 {
 		c.Port = 8000
@@ -61,20 +56,17 @@ func (c *Config) setDefaults() {
 		c.RequestTimeout = 30 // 30 seconds default
 	}
 	if c.Theme == "" {
-		c.Theme = "default" // default theme
+		c.Theme = "default"
 	}
-	// EnableSecurity defaults to false for backward compatibility
 }
 
-// validate checks that the configuration is valid.
 func (c *Config) validate() error {
 	if c.Port < 0 || c.Port > 65535 {
 		return fmt.Errorf("port must be between 0 and 65535, got %d", c.Port)
 	}
 
-	// Validate theme selection
 	if !validThemes[c.Theme] {
-		return fmt.Errorf("invalid theme %q: supported themes are 'default' and 'classic'", c.Theme)
+		return fmt.Errorf("invalid theme %q: supported themes are 'default', 'classic', and 'advanced'", c.Theme)
 	}
 
 	absDir, err := filepath.Abs(c.Dir)
@@ -91,12 +83,11 @@ func (c *Config) validate() error {
 		return fmt.Errorf("path %q is not a directory", absDir)
 	}
 
-	c.Dir = absDir // Use absolute path
+	c.Dir = absDir
 
 	return nil
 }
 
-// Address returns the network address to listen on.
 func (c *Config) Address() string {
 	return fmt.Sprintf("%s:%d", c.Host, c.Port)
 }

@@ -87,7 +87,15 @@ func main() {
 
 	// Initialize server components
 	fs := filesystem.NewLocal(cfg.Dir, cfg.ShowHidden)
-	fileHandler := handler.NewFile(fs, cfg)
+
+	// Use advanced handler for advanced theme, regular handler otherwise
+	var fileHandler http.Handler
+	if cfg.Theme == "advanced" {
+		fileHandler = handler.NewAdvancedFile(fs, cfg)
+	} else {
+		fileHandler = handler.NewFile(fs, cfg)
+	}
+
 	srv := server.New(cfg, fileHandler, authMiddleware, logger)
 
 	// Start server
@@ -138,7 +146,7 @@ func showHelp() {
 	fmt.Println("  -H, --show-hidden   Show hidden files and directories")
 	fmt.Println("      --host string   Server host address to bind to (default \"127.0.0.1\")")
 	fmt.Println("  -p, --port int      Server port number to listen on (default 8000)")
-	fmt.Println("      --theme string  UI theme: default (minimal), classic (Windows-style) (default \"default\")")
+	fmt.Println("      --theme string  UI theme: default, classic, advanced (default \"default\")")
 	fmt.Println("  -v, --version       Show version information and exit")
 	fmt.Println()
 	fmt.Println("Environment Variables:")

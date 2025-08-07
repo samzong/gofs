@@ -81,7 +81,7 @@ func (h *File) handleDirectory(w http.ResponseWriter, r *http.Request, path stri
 		return
 	}
 
-	// Sort file list with directories first, then alphabetically
+	// Sort file list with directories first, then alphabetically (case-insensitive)
 	sort.Slice(files, func(i, j int) bool {
 		// Directories come first
 		if files[i].IsDir() && !files[j].IsDir() {
@@ -90,7 +90,8 @@ func (h *File) handleDirectory(w http.ResponseWriter, r *http.Request, path stri
 		if !files[i].IsDir() && files[j].IsDir() {
 			return false
 		}
-		return files[i].Name() < files[j].Name()
+		// Case-insensitive alphabetical sorting within same type
+		return strings.ToLower(files[i].Name()) < strings.ToLower(files[j].Name())
 	})
 
 	// Check if JSON format is requested
