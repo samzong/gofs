@@ -15,7 +15,7 @@ import (
 
 func TestHealthCheckMiddleware(t *testing.T) {
 	// Create a test handler that returns 404 for non-health endpoints
-	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	testHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		fmt.Fprint(w, "Not Found")
 	})
@@ -69,7 +69,7 @@ func TestHealthCheckMiddleware(t *testing.T) {
 
 func TestLoggingMiddleware(t *testing.T) {
 	// Create a simple test handler
-	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	testHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprint(w, "OK")
 	})
@@ -122,7 +122,7 @@ func TestNew(t *testing.T) {
 		t.Fatalf("Failed to create config: %v", err)
 	}
 
-	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	testHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -175,7 +175,7 @@ func TestNewWithAuth(t *testing.T) {
 		t.Fatalf("Failed to create config: %v", err)
 	}
 
-	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	testHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -210,7 +210,7 @@ func TestServerShutdown(t *testing.T) {
 		t.Fatalf("Failed to create config: %v", err)
 	}
 
-	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	testHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -233,7 +233,7 @@ func TestConcurrentRequests(t *testing.T) {
 		t.Fatalf("Failed to create config: %v", err)
 	}
 
-	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	testHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprint(w, "OK")
 	})

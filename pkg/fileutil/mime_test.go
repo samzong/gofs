@@ -55,7 +55,7 @@ func testJavaScriptAndJSON(t *testing.T) {
 		{
 			name:     "JSON file",
 			filename: "data.json",
-			expected: "application/json",
+			expected: "application/json; charset=utf-8",
 		},
 	}
 
@@ -116,7 +116,7 @@ func testDocumentFiles(t *testing.T) {
 		{
 			name:     "Markdown file",
 			filename: "README.md",
-			expected: "text/markdown",
+			expected: "text/markdown; charset=utf-8",
 		},
 	}
 
@@ -139,12 +139,12 @@ func testConfigFiles(t *testing.T) {
 		{
 			name:     "YAML file",
 			filename: "config.yaml",
-			expected: "application/x-yaml",
+			expected: "application/x-yaml; charset=utf-8",
 		},
 		{
 			name:     "YML file",
 			filename: "docker-compose.yml",
-			expected: "application/x-yaml",
+			expected: "application/x-yaml; charset=utf-8",
 		},
 		{
 			name:     "Log file",
@@ -202,68 +202,36 @@ func testEdgeCases(t *testing.T) {
 }
 
 func TestIsTextFile(t *testing.T) {
-	tests := []struct {
+	testCases := []struct {
 		name     string
 		filename string
 		expected bool
 	}{
-		{
-			name:     "HTML file",
-			filename: "index.html",
-			expected: true,
-		},
-		{
-			name:     "JavaScript file",
-			filename: "app.js",
-			expected: true,
-		},
-		{
-			name:     "JSON file",
-			filename: "data.json",
-			expected: true,
-		},
-		{
-			name:     "Markdown file",
-			filename: "README.md",
-			expected: true,
-		},
-		{
-			name:     "YAML file",
-			filename: "config.yaml",
-			expected: true,
-		},
-		{
-			name:     "XML file",
-			filename: "config.xml",
-			expected: true,
-		},
-		{
-			name:     "Plain text",
-			filename: "notes.txt",
-			expected: true,
-		},
-		{
-			name:     "Binary file",
-			filename: "app.exe",
-			expected: false,
-		},
-		{
-			name:     "Image file",
-			filename: "photo.jpg",
-			expected: false,
-		},
-		{
-			name:     "PDF file",
-			filename: "doc.pdf",
-			expected: false,
-		},
+		{"HTML file", "index.html", true},
+		{"JavaScript file", "app.js", true},
+		{"JSON file", "data.json", true},
+		{"Markdown file", "README.md", true},
+		{"YAML file", "config.yaml", true},
+		{"XML file", "config.xml", true},
+		{"Plain text", "notes.txt", true},
+		{"Binary file", "app.exe", false},
+		{"Image file", "photo.jpg", false},
+		{"PDF file", "doc.pdf", false},
 	}
 
+	runBoolTests(t, testCases, IsTextFile)
+}
+
+func runBoolTests(t *testing.T, tests []struct {
+	name     string
+	filename string
+	expected bool
+}, fn func(string) bool) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := IsTextFile(tt.filename)
+			result := fn(tt.filename)
 			if result != tt.expected {
-				t.Errorf("IsTextFile(%q) = %v, want %v", tt.filename, result, tt.expected)
+				t.Errorf("function(%q) = %v, want %v", tt.filename, result, tt.expected)
 			}
 		})
 	}

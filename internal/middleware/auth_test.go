@@ -48,7 +48,7 @@ func TestBasicAuthMiddleware_Success(t *testing.T) {
 	}
 
 	// Create a test handler that sets a header to verify it was called
-	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("X-Handler-Called", "true")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("success"))
@@ -84,7 +84,7 @@ func TestBasicAuthMiddleware_NoAuthHeader(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	nextHandler := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		t.Error("next handler should not be called")
 	})
 	handler := auth.Middleware(nextHandler)
@@ -119,7 +119,7 @@ func TestBasicAuthMiddleware_InvalidAuthScheme(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	nextHandler := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		t.Error("next handler should not be called")
 	})
 	handler := auth.Middleware(nextHandler)
@@ -142,7 +142,7 @@ func TestBasicAuthMiddleware_InvalidBase64(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	nextHandler := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		t.Error("next handler should not be called")
 	})
 	handler := auth.Middleware(nextHandler)
@@ -165,7 +165,7 @@ func TestBasicAuthMiddleware_MissingColon(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	nextHandler := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		t.Error("next handler should not be called")
 	})
 	handler := auth.Middleware(nextHandler)
@@ -189,7 +189,7 @@ func TestBasicAuthMiddleware_WrongUsername(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	nextHandler := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		t.Error("next handler should not be called")
 	})
 	handler := auth.Middleware(nextHandler)
@@ -213,7 +213,7 @@ func TestBasicAuthMiddleware_WrongPassword(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	nextHandler := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		t.Error("next handler should not be called")
 	})
 	handler := auth.Middleware(nextHandler)
@@ -237,7 +237,7 @@ func TestBasicAuthMiddleware_EmptyCredentials(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	nextHandler := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		t.Error("next handler should not be called")
 	})
 	handler := auth.Middleware(nextHandler)
@@ -261,7 +261,7 @@ func TestBasicAuthMiddleware_SpecialCharacters(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 	handler := auth.Middleware(nextHandler)
@@ -285,7 +285,7 @@ func TestBasicAuthMiddleware_UnicodeCredentials(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 	handler := auth.Middleware(nextHandler)
@@ -309,7 +309,7 @@ func TestBasicAuthMiddleware_CaseSensitivity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	nextHandler := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		t.Error("next handler should not be called")
 	})
 	handler := auth.Middleware(nextHandler)
@@ -334,7 +334,7 @@ func TestBasicAuthMiddleware_RealmWithSpecialChars(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	nextHandler := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		t.Error("next handler should not be called")
 	})
 	handler := auth.Middleware(nextHandler)
@@ -358,7 +358,7 @@ func BenchmarkBasicAuthMiddleware_Success(b *testing.B) {
 	if err != nil {
 		b.Fatalf("unexpected error: %v", err)
 	}
-	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 	handler := auth.Middleware(nextHandler)
@@ -379,7 +379,7 @@ func BenchmarkBasicAuthMiddleware_Failure(b *testing.B) {
 	if err != nil {
 		b.Fatalf("unexpected error: %v", err)
 	}
-	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 	handler := auth.Middleware(nextHandler)
@@ -395,13 +395,13 @@ func BenchmarkBasicAuthMiddleware_Failure(b *testing.B) {
 	}
 }
 
-// Test to verify timing attack resistance (conceptual - actual timing analysis would require more sophisticated tooling)
+// Test to verify timing attack resistance
 func TestBasicAuthMiddleware_TimingAttackResistance(t *testing.T) {
 	auth, err := NewBasicAuth("test-realm", "admin", "verylongpasswordthatistotallysecret")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 	handler := auth.Middleware(nextHandler)
@@ -440,7 +440,7 @@ func TestBasicAuthMiddleware_MultipleRequestsWithSameCredentials(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 	handler := auth.Middleware(nextHandler)
@@ -466,7 +466,7 @@ func TestBasicAuthMiddleware_DifferentHTTPMethods(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 	handler := auth.Middleware(nextHandler)
@@ -494,7 +494,7 @@ func TestBasicAuthMiddleware_ContentTypeHeader(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	nextHandler := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		t.Error("next handler should not be called")
 	})
 	handler := auth.Middleware(nextHandler)
@@ -518,7 +518,7 @@ func TestBasicAuthMiddleware_EmptyRealm(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	nextHandler := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		t.Error("next handler should not be called")
 	})
 	handler := auth.Middleware(nextHandler)
@@ -541,7 +541,7 @@ func TestBasicAuthMiddleware_AuthorizationHeaderCase(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 	handler := auth.Middleware(nextHandler)

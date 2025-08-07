@@ -21,6 +21,9 @@ linters:
     - perfsprint
     - revive
     - unconvert
+    - lll
+    - dupl
+    - dogsled
   settings:
     gocritic:
       enabled-checks:

@@ -19,22 +19,22 @@ func DetectMimeType(filename string) string {
 		".htm":  "text/html; charset=utf-8",
 		".css":  "text/css; charset=utf-8",
 		".js":   "text/javascript; charset=utf-8",
-		".json": "application/json",
-		".xml":  "application/xml",
+		".json": "application/json; charset=utf-8",
+		".xml":  "application/xml; charset=utf-8",
 
 		// Images
 		".png":  "image/png",
 		".jpg":  "image/jpeg",
 		".jpeg": "image/jpeg",
 		".gif":  "image/gif",
-		".svg":  "image/svg+xml",
+		".svg":  "image/svg+xml; charset=utf-8",
 		".webp": "image/webp",
 		".ico":  "image/x-icon",
 
 		// Documents
 		".pdf": "application/pdf",
 		".txt": "text/plain; charset=utf-8",
-		".md":  "text/markdown",
+		".md":  "text/markdown; charset=utf-8",
 		".rtf": "application/rtf",
 
 		// Archives
@@ -44,9 +44,9 @@ func DetectMimeType(filename string) string {
 		".rar": "application/x-rar-compressed",
 
 		// Config files
-		".yaml": "application/x-yaml",
-		".yml":  "application/x-yaml",
-		".toml": "application/toml",
+		".yaml": "application/x-yaml; charset=utf-8",
+		".yml":  "application/x-yaml; charset=utf-8",
+		".toml": "application/toml; charset=utf-8",
 		".ini":  "text/plain; charset=utf-8",
 		".conf": "text/plain; charset=utf-8",
 		".cfg":  "text/plain; charset=utf-8",

@@ -32,39 +32,21 @@ var (
 )
 
 func main() {
-	// Parse command line flags using Go's standard flag package
-	var (
-		port         = flag.Int("port", getEnvInt("GOFS_PORT", 8000), "Server port")
-		portShort    = flag.Int("p", getEnvInt("GOFS_PORT", 8000), "Server port (shorthand)")
-		host         = flag.String("host", getEnvString("GOFS_HOST", "127.0.0.1"), "Server host")
-		dir          = flag.String("dir", getEnvString("GOFS_DIR", "."), "Root directory")
-		dirShort     = flag.String("d", getEnvString("GOFS_DIR", "."), "Root directory (shorthand)")
-		theme        = flag.String("theme", getEnvString("GOFS_THEME", "default"), "UI theme (default, classic)")
-		showHidden   = flag.Bool("show-hidden", getEnvBool("GOFS_SHOW_HIDDEN", false), "Show hidden files")
-		hiddenShort  = flag.Bool("H", getEnvBool("GOFS_SHOW_HIDDEN", false), "Show hidden files (shorthand)")
-		auth         = flag.String("auth", getEnvString("GOFS_AUTH", ""), "Basic auth (user:password)")
-		authShort    = flag.String("a", getEnvString("GOFS_AUTH", ""), "Basic auth (shorthand)")
-		help         = flag.Bool("help", false, "Show help")
-		helpShort    = flag.Bool("h", false, "Show help (shorthand)")
-		versionFlag  = flag.Bool("version", false, "Show version")
-		versionShort = flag.Bool("v", false, "Show version (shorthand)")
-		healthCheck  = flag.Bool("health-check", false, "Perform health check and exit")
-	)
-
-	flag.Parse()
+	// Parse command line flags with simplified approach
+	flags := parseFlags()
 
 	// Handle special flags first
-	if *help || *helpShort {
+	if flags.Help {
 		showHelp()
 		return
 	}
 
-	if *versionFlag || *versionShort {
+	if flags.Version {
 		showVersion()
 		return
 	}
 
-	if *healthCheck {
+	if flags.HealthCheck {
 		if err := performHealthCheck(); err != nil {
 			fmt.Fprintf(os.Stderr, "Health check FAILED: %v\n", err)
 			os.Exit(1)
@@ -74,26 +56,8 @@ func main() {
 		return
 	}
 
-	// Resolve flag precedence (shorthand flags override long flags if both are provided)
-	finalPort := *port
-	if flag.Lookup("p").Value.String() != flag.Lookup("p").DefValue {
-		finalPort = *portShort
-	}
-
-	finalDir := *dir
-	if flag.Lookup("d").Value.String() != flag.Lookup("d").DefValue {
-		finalDir = *dirShort
-	}
-
-	finalShowHidden := *showHidden || *hiddenShort
-
-	finalAuth := *auth
-	if *authShort != "" {
-		finalAuth = *authShort
-	}
-
 	// Create configuration
-	cfg, err := config.New(finalPort, *host, finalDir, *theme, finalShowHidden)
+	cfg, err := config.New(flags.Port, flags.Host, flags.Dir, flags.Theme, flags.ShowHidden)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Configuration error: %v\n", err)
 		os.Exit(1)
@@ -106,13 +70,13 @@ func main() {
 		slog.String("version", version),
 		slog.String("address", cfg.Address()),
 		slog.String("directory", cfg.Dir),
-		slog.Bool("auth_enabled", finalAuth != ""),
+		slog.Bool("auth_enabled", flags.Auth != ""),
 	)
 
 	// Create authentication middleware if needed
 	var authMiddleware *middleware.BasicAuth
-	if finalAuth != "" {
-		authMiddleware, err = middleware.NewBasicAuthFromCredentials(finalAuth)
+	if flags.Auth != "" {
+		authMiddleware, err = middleware.NewBasicAuthFromCredentials(flags.Auth)
 		if err != nil {
 			logger.Error("Authentication setup failed", slog.Any("error", err))
 			fmt.Fprintf(os.Stderr, "Authentication error: %v\n", err)
@@ -148,13 +112,14 @@ func main() {
 		logger.Info("Shutdown signal received", slog.String("signal", sig.String()))
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
 
 		if err := srv.Shutdown(ctx); err != nil {
+			cancel()
 			logger.Error("Server shutdown failed", slog.Any("error", err))
 			fmt.Fprintf(os.Stderr, "Server shutdown error: %v\n", err)
 			os.Exit(1)
 		}
+		cancel()
 
 		logger.Info("Server stopped gracefully")
 	}
@@ -194,30 +159,98 @@ func showVersion() {
 	fmt.Printf("Go version: %s\n", goVersion)
 }
 
-// Environment variable helper functions
-func getEnvString(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
+// cmdFlags represents all command line flags and their values
+type cmdFlags struct {
+	Port        int
+	Host        string
+	Dir         string
+	Theme       string
+	ShowHidden  bool
+	Auth        string
+	Help        bool
+	Version     bool
+	HealthCheck bool
 }
 
-func getEnvInt(key string, defaultValue int) int {
-	if value := os.Getenv(key); value != "" {
-		if intValue, err := strconv.Atoi(value); err == nil {
-			return intValue
-		}
+// parseFlags parses command line flags with both long and short forms
+func parseFlags() *cmdFlags {
+	f := &cmdFlags{}
+
+	// Define both long and short forms
+	port := flag.Int("port", getEnv("GOFS_PORT", 8000), "Server port")
+	portShort := flag.Int("p", 0, "Server port (shorthand)")
+	host := flag.String("host", getEnv("GOFS_HOST", "127.0.0.1"), "Server host")
+	dir := flag.String("dir", getEnv("GOFS_DIR", "."), "Root directory")
+	dirShort := flag.String("d", "", "Root directory (shorthand)")
+	theme := flag.String("theme", getEnv("GOFS_THEME", "default"), "UI theme")
+	showHidden := flag.Bool("show-hidden", getEnv("GOFS_SHOW_HIDDEN", false), "Show hidden files")
+	hiddenShort := flag.Bool("H", false, "Show hidden files (shorthand)")
+	auth := flag.String("auth", getEnv("GOFS_AUTH", ""), "Basic auth (user:password)")
+	authShort := flag.String("a", "", "Basic auth (shorthand)")
+	help := flag.Bool("help", false, "Show help")
+	helpShort := flag.Bool("h", false, "Show help (shorthand)")
+	versionFlag := flag.Bool("version", false, "Show version")
+	versionShort := flag.Bool("v", false, "Show version (shorthand)")
+	healthCheck := flag.Bool("health-check", false, "Perform health check and exit")
+
+	flag.Parse()
+
+	// Resolve values with shorthand precedence
+	f.Port = *port
+	if *portShort != 0 {
+		f.Port = *portShort
 	}
-	return defaultValue
+
+	f.Host = *host
+	f.Dir = *dir
+	if *dirShort != "" {
+		f.Dir = *dirShort
+	}
+
+	f.Theme = *theme
+	f.ShowHidden = *showHidden || *hiddenShort
+
+	f.Auth = *auth
+	if *authShort != "" {
+		f.Auth = *authShort
+	}
+
+	f.Help = *help || *helpShort
+	f.Version = *versionFlag || *versionShort
+	f.HealthCheck = *healthCheck
+
+	return f
 }
 
-func getEnvBool(key string, defaultValue bool) bool {
-	if value := os.Getenv(key); value != "" {
-		if boolValue, err := strconv.ParseBool(value); err == nil {
-			return boolValue
-		}
+// getEnv is a generic function to get environment variables with type conversion
+func getEnv[T any](key string, defaultValue T) T {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
 	}
-	return defaultValue
+
+	// Type switch to handle different types
+	var result any
+	switch any(defaultValue).(type) {
+	case string:
+		result = value
+	case int:
+		if intVal, err := strconv.Atoi(value); err == nil {
+			result = intVal
+		} else {
+			return defaultValue
+		}
+	case bool:
+		if boolVal, err := strconv.ParseBool(value); err == nil {
+			result = boolVal
+		} else {
+			return defaultValue
+		}
+	default:
+		return defaultValue
+	}
+
+	return result.(T)
 }
 
 // performHealthCheck performs a lightweight health check via HTTP
@@ -254,31 +287,28 @@ func performHealthCheck() error {
 	return nil
 }
 
-// setupLogger creates a simple, effective logger using Go's slog
+// setupLogger creates a logger with environment-based configuration
 func setupLogger() *slog.Logger {
-	// Use JSON format for production, text for development
-	handler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
-	})
+	level := parseLogLevel(os.Getenv("GOFS_LOG_LEVEL"))
+	opts := &slog.HandlerOptions{Level: level}
 
-	// Override level if specified
-	if level := os.Getenv("GOFS_LOG_LEVEL"); level != "" {
-		switch level {
-		case "debug":
-			handler = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug})
-		case "warn":
-			handler = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelWarn})
-		case "error":
-			handler = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError})
-		}
-	}
-
-	// Use JSON format in production
+	// Use JSON format in production, text otherwise
 	if os.Getenv("GOFS_ENV") == "production" {
-		return slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-			Level: slog.LevelInfo,
-		}))
+		return slog.New(slog.NewJSONHandler(os.Stdout, opts))
 	}
+	return slog.New(slog.NewTextHandler(os.Stdout, opts))
+}
 
-	return slog.New(handler)
+// parseLogLevel converts string to slog.Level
+func parseLogLevel(level string) slog.Level {
+	switch level {
+	case "debug":
+		return slog.LevelDebug
+	case "warn":
+		return slog.LevelWarn
+	case "error":
+		return slog.LevelError
+	default:
+		return slog.LevelInfo
+	}
 }

@@ -49,6 +49,7 @@ func (e *APIError) Error() string {
 }
 
 // NewAPIError creates a new API error with the given code and message.
+// Use method chaining to set optional fields.
 func NewAPIError(code, message string) *APIError {
 	return &APIError{
 		Code:    code,
@@ -57,21 +58,14 @@ func NewAPIError(code, message string) *APIError {
 	}
 }
 
-// NewAPIErrorWithDetails creates a new API error with additional details.
-func NewAPIErrorWithDetails(code, message string, details any) *APIError {
-	return &APIError{
-		Code:    code,
-		Message: message,
-		Details: details,
-		Status:  http.StatusInternalServerError, // Default status
-	}
+// WithStatus sets the HTTP status code for the error.
+func (e *APIError) WithStatus(status int) *APIError {
+	e.Status = status
+	return e
 }
 
-// NewAPIErrorWithStatus creates a new API error with a specific HTTP status.
-func NewAPIErrorWithStatus(code, message string, status int) *APIError {
-	return &APIError{
-		Code:    code,
-		Message: message,
-		Status:  status,
-	}
+// WithDetails adds additional details to the error.
+func (e *APIError) WithDetails(details any) *APIError {
+	e.Details = details
+	return e
 }

@@ -63,64 +63,24 @@ func TestSafePath(t *testing.T) {
 }
 
 func TestIsHidden(t *testing.T) {
-	tests := []struct {
+	testCases := []struct {
 		name     string
 		filename string
 		expected bool
 	}{
-		{
-			name:     "empty name",
-			filename: "",
-			expected: false,
-		},
-		{
-			name:     "normal file",
-			filename: "test.txt",
-			expected: false,
-		},
-		{
-			name:     "dot file",
-			filename: ".hidden",
-			expected: true,
-		},
-		{
-			name:     "dot directory",
-			filename: ".git",
-			expected: true,
-		},
-		{
-			name:     "current directory",
-			filename: ".",
-			expected: true,
-		},
-		{
-			name:     "parent directory",
-			filename: "..",
-			expected: true,
-		},
-		{
-			name:     "DS_Store",
-			filename: ".DS_Store",
-			expected: true,
-		},
-		{
-			name:     "Thumbs.db",
-			filename: "Thumbs.db",
-			expected: true,
-		},
-		{
-			name:     "Desktop.ini",
-			filename: "Desktop.ini",
-			expected: true,
-		},
-		{
-			name:     "normal system file",
-			filename: "system32",
-			expected: false,
-		},
+		{"empty name", "", false},
+		{"normal file", "test.txt", false},
+		{"dot file", ".hidden", true},
+		{"dot directory", ".git", true},
+		{"current directory", ".", true},
+		{"parent directory", "..", true},
+		{"DS_Store", ".DS_Store", true},
+		{"Thumbs.db", "Thumbs.db", true},
+		{"Desktop.ini", "Desktop.ini", true},
+		{"normal system file", "system32", false},
 	}
 
-	for _, tt := range tests {
+	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
 			result := IsHidden(tt.filename)
 			if result != tt.expected {

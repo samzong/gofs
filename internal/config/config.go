@@ -7,6 +7,12 @@ import (
 	"path/filepath"
 )
 
+// Valid themes for the file server UI
+var validThemes = map[string]bool{
+	"default": true,
+	"classic": true,
+}
+
 // Config holds the server configuration.
 type Config struct {
 	Host           string
@@ -66,11 +72,7 @@ func (c *Config) validate() error {
 		return fmt.Errorf("port must be between 0 and 65535, got %d", c.Port)
 	}
 
-	// Validate theme selection (enterprise-grade themes only)
-	validThemes := map[string]bool{
-		"default": true,
-		"classic": true,
-	}
+	// Validate theme selection
 	if !validThemes[c.Theme] {
 		return fmt.Errorf("invalid theme %q: supported themes are 'default' and 'classic'", c.Theme)
 	}
@@ -90,11 +92,6 @@ func (c *Config) validate() error {
 	}
 
 	c.Dir = absDir // Use absolute path
-
-	// Validate theme
-	if c.Theme != "default" && c.Theme != "classic" {
-		return fmt.Errorf("invalid theme %q: supported themes are 'default' and 'classic'", c.Theme)
-	}
 
 	return nil
 }

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/samzong/gofs/internal"
+	"github.com/samzong/gofs/pkg/fileutil"
 )
 
 // Local implements the FileSystem interface for local file system access.
@@ -33,11 +34,21 @@ func (fs *Local) Root() string {
 
 // Open opens the file at the given path for reading.
 func (fs *Local) Open(name string) (io.ReadCloser, error) {
-	fullPath, err := fs.safePath(name)
-	if err != nil {
+	fullPath := fs.getFullPath(name)
+	if fullPath == "" {
+		return nil, &internal.APIError{
+			Code:    "INVALID_PATH",
+			Message: "Invalid file path",
+			Status:  http.StatusBadRequest,
+		}
+	}
+
+	// Verify symlink safety
+	if err := fs.verifySymlinkSafety(fullPath); err != nil {
 		return nil, err
 	}
-	// #nosec G304 - path is validated by safePath function
+
+	// #nosec G304 - path is validated by fileutil.SafePath
 	file, err := os.Open(fullPath)
 	if err != nil {
 		return nil, &internal.APIError{
@@ -51,8 +62,17 @@ func (fs *Local) Open(name string) (io.ReadCloser, error) {
 
 // Stat returns file information for the given path.
 func (fs *Local) Stat(name string) (internal.FileInfo, error) {
-	fullPath, err := fs.safePath(name)
-	if err != nil {
+	fullPath := fs.getFullPath(name)
+	if fullPath == "" {
+		return nil, &internal.APIError{
+			Code:    "INVALID_PATH",
+			Message: "Invalid file path",
+			Status:  http.StatusBadRequest,
+		}
+	}
+
+	// Verify symlink safety
+	if err := fs.verifySymlinkSafety(fullPath); err != nil {
 		return nil, err
 	}
 
@@ -70,8 +90,17 @@ func (fs *Local) Stat(name string) (internal.FileInfo, error) {
 
 // ReadDir reads the directory and returns a list of directory entries.
 func (fs *Local) ReadDir(name string) ([]internal.FileInfo, error) {
-	fullPath, err := fs.safePath(name)
-	if err != nil {
+	fullPath := fs.getFullPath(name)
+	if fullPath == "" {
+		return nil, &internal.APIError{
+			Code:    "INVALID_PATH",
+			Message: "Invalid directory path",
+			Status:  http.StatusBadRequest,
+		}
+	}
+
+	// Verify symlink safety
+	if err := fs.verifySymlinkSafety(fullPath); err != nil {
 		return nil, err
 	}
 
@@ -101,53 +130,73 @@ func (fs *Local) ReadDir(name string) ([]internal.FileInfo, error) {
 	return result, nil
 }
 
-// safePath ensures the path is safe and prevents directory traversal attacks.
-// It also prevents symlink attacks by ensuring symlinks don't point outside the root.
-func (fs *Local) safePath(name string) (string, error) {
+// getFullPath converts a request path to a full filesystem path.
+// It uses fileutil.SafePath for validation and returns empty string if invalid.
+func (fs *Local) getFullPath(name string) string {
 	if name == "" {
 		name = "."
 	}
 
-	// Clean the path
-	name = filepath.Clean("/" + name)
-
-	// Remove leading slash
-	name = strings.TrimPrefix(name, "/")
+	// Use fileutil.SafePath for validation
+	safeName := fileutil.SafePath(name)
+	if safeName == "" {
+		return ""
+	}
 
 	// Build full path
-	fullPath := filepath.Join(fs.root, name)
+	fullPath := filepath.Join(fs.root, safeName)
 
-	// Ensure path is within root directory
+	// Final safety check: ensure path is within root
 	if !strings.HasPrefix(fullPath, fs.root) {
-		return "", &internal.APIError{
-			Code:    "INVALID_PATH",
-			Message: "Path outside of root directory",
+		return ""
+	}
+
+	return fullPath
+}
+
+// verifySymlinkSafety checks if a symlink points outside the root directory.
+func (fs *Local) verifySymlinkSafety(fullPath string) error {
+	info, err := os.Lstat(fullPath)
+	if err != nil {
+		// File doesn't exist yet, which is fine for operations like Create
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return &internal.APIError{
+			Code:    "FILE_ACCESS_ERROR",
+			Message: "Unable to check file status",
+			Status:  http.StatusInternalServerError,
 		}
 	}
 
-	// Security: Check for symlink attacks
-	if info, err := os.Lstat(fullPath); err == nil {
-		if info.Mode()&os.ModeSymlink != 0 {
-			// Resolve the symlink and ensure it points within the root
-			if resolved, resolveErr := filepath.EvalSymlinks(fullPath); resolveErr == nil {
-				// Clean the resolved path and ensure it's still within root
-				resolved = filepath.Clean(resolved)
-				if !strings.HasPrefix(resolved, fs.root) {
-					return "", &internal.APIError{
-						Code:    "SYMLINK_ATTACK",
-						Message: "Symlink points outside root directory",
-					}
-				}
+	if info.Mode()&os.ModeSymlink != 0 {
+		// Resolve the symlink and ensure it points within the root
+		resolved, err := filepath.EvalSymlinks(fullPath)
+		if err != nil {
+			return &internal.APIError{
+				Code:    "SYMLINK_ERROR",
+				Message: "Unable to resolve symlink",
+				Status:  http.StatusForbidden,
+			}
+		}
+
+		// Clean and check if resolved path is within root
+		resolved = filepath.Clean(resolved)
+		if !strings.HasPrefix(resolved, fs.root) {
+			return &internal.APIError{
+				Code:    "SYMLINK_ATTACK",
+				Message: "Symlink points outside root directory",
+				Status:  http.StatusForbidden,
 			}
 		}
 	}
 
-	return fullPath, nil
+	return nil
 }
 
-// isHidden checks if a file or directory is hidden (starts with dot).
+// isHidden checks if a file or directory is hidden.
 func isHidden(name string) bool {
-	return strings.HasPrefix(name, ".")
+	return fileutil.IsHidden(name)
 }
 
 // localFileInfo implements internal.FileInfo for os.FileInfo.

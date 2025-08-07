@@ -49,9 +49,9 @@ func TestGetEnvString(t *testing.T) {
 				defer os.Unsetenv(tt.key)
 			}
 
-			result := getEnvString(tt.key, tt.defaultValue)
+			result := getEnv(tt.key, tt.defaultValue)
 			if result != tt.expected {
-				t.Errorf("getEnvString() = %v, want %v", result, tt.expected)
+				t.Errorf("getEnv[string]() = %v, want %v", result, tt.expected)
 			}
 		})
 	}
@@ -109,9 +109,9 @@ func TestGetEnvInt(t *testing.T) {
 				defer os.Unsetenv(tt.key)
 			}
 
-			result := getEnvInt(tt.key, tt.defaultValue)
+			result := getEnv(tt.key, tt.defaultValue)
 			if result != tt.expected {
-				t.Errorf("getEnvInt() = %v, want %v", result, tt.expected)
+				t.Errorf("getEnv[int]() = %v, want %v", result, tt.expected)
 			}
 		})
 	}
@@ -185,9 +185,9 @@ func TestGetEnvBool(t *testing.T) {
 				defer os.Unsetenv(tt.key)
 			}
 
-			result := getEnvBool(tt.key, tt.defaultValue)
+			result := getEnv(tt.key, tt.defaultValue)
 			if result != tt.expected {
-				t.Errorf("getEnvBool() = %v, want %v", result, tt.expected)
+				t.Errorf("getEnv[bool]() = %v, want %v", result, tt.expected)
 			}
 		})
 	}

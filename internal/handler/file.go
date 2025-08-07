@@ -110,13 +110,7 @@ func (h *File) handleFile(w http.ResponseWriter, _ *http.Request, path string) {
 		http.Error(w, "Cannot open file", http.StatusInternalServerError)
 		return
 	}
-	defer func() {
-		if closeErr := file.Close(); closeErr != nil {
-			// Log error but don't fail the request as data may have been sent
-			// In production, this should use structured logging
-			fmt.Printf("Warning: Failed to close file %q: %v\n", path, closeErr)
-		}
-	}()
+	defer h.closeFile(file, path)
 
 	// Get file info for size and security checks
 	info, err := h.fs.Stat(path)
@@ -125,47 +119,65 @@ func (h *File) handleFile(w http.ResponseWriter, _ *http.Request, path string) {
 		return
 	}
 
-	// Enterprise security: Check file size limit (prevent DoS)
+	// Check file size limit (prevent DoS)
 	if info.Size() > h.config.MaxFileSize {
 		http.Error(w, "File too large", http.StatusRequestEntityTooLarge)
 		return
 	}
 
-	// Set security headers
+	// Set all necessary headers
+	h.setSecurityHeaders(w)
+	h.setFileHeaders(w, path, info)
+
+	// Serve file content with appropriate strategy
+	h.serveFileContent(w, file, info.Size())
+}
+
+// closeFile handles safe file closing with error logging.
+func (h *File) closeFile(file io.ReadCloser, path string) {
+	if err := file.Close(); err != nil {
+		// Log error but don't fail the request as data may have been sent
+		fmt.Printf("Warning: Failed to close file %q: %v\n", path, err)
+	}
+}
+
+// setSecurityHeaders sets security-related HTTP headers.
+func (h *File) setSecurityHeaders(w http.ResponseWriter) {
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("X-Frame-Options", "DENY")
 	w.Header().Set("X-XSS-Protection", "1; mode=block")
 	w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 
-	// Add Content Security Policy for enhanced security
 	if h.config.EnableSecurity {
 		w.Header().Set("Content-Security-Policy", "default-src 'self'")
 	}
+}
 
-	// Set filename in Content-Disposition header with proper escaping
+// setFileHeaders sets file-specific HTTP headers.
+func (h *File) setFileHeaders(w http.ResponseWriter, path string, info internal.FileInfo) {
+	// Set filename in Content-Disposition header
 	filename := filepath.Base(path)
 	w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=%q", filename))
 
 	// Set MIME type
-	mimeType := fileutil.DetectMimeType(path)
-	w.Header().Set("Content-Type", mimeType)
+	w.Header().Set("Content-Type", fileutil.DetectMimeType(path))
 
-	// Set content length for better client handling
+	// Set content length
 	w.Header().Set("Content-Length", strconv.FormatInt(info.Size(), 10))
+}
 
-	// Enterprise optimization: Use buffered copy for large files
-	if info.Size() > 1<<20 { // 1MB threshold
-		buf := make([]byte, 64<<10) // 64KB buffer for large files
-		if _, err := io.CopyBuffer(w, file, buf); err != nil {
-			// Error already written to response, just log
-			return
-		}
+// serveFileContent serves the file content using the appropriate strategy based on size.
+func (h *File) serveFileContent(w http.ResponseWriter, file io.ReadCloser, size int64) {
+	const largeFileThreshold = 1 << 20 // 1MB
+	const bufferSize = 64 << 10        // 64KB
+
+	if size > largeFileThreshold {
+		// Use buffered copy for large files
+		buf := make([]byte, bufferSize)
+		_, _ = io.CopyBuffer(w, file, buf)
 	} else {
-		// Use standard copy for small files (already optimized)
-		if _, err := io.Copy(w, file); err != nil {
-			// Error already written to response, just log
-			return
-		}
+		// Use standard copy for small files
+		_, _ = io.Copy(w, file)
 	}
 }
 
