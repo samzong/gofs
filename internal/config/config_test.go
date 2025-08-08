@@ -81,7 +81,7 @@ func TestNew(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg, err := New(tc.port, tc.host, tc.dir, tc.theme, tc.showHidden)
+			cfg, err := New(tc.port, tc.host, tc.dir, tc.theme, tc.showHidden, nil)
 			if tc.expectError {
 				if err == nil {
 					t.Error("expected error, got nil")

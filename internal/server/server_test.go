@@ -117,7 +117,7 @@ func TestResponseWriter(t *testing.T) {
 }
 
 func TestNew(t *testing.T) {
-	cfg, err := config.New(8080, "localhost", ".", "default", false)
+	cfg, err := config.New(8080, "localhost", ".", "default", false, nil)
 	if err != nil {
 		t.Fatalf("Failed to create config: %v", err)
 	}
@@ -170,7 +170,7 @@ func TestNew(t *testing.T) {
 }
 
 func TestNewWithAuth(t *testing.T) {
-	cfg, err := config.New(8080, "localhost", ".", "default", false)
+	cfg, err := config.New(8080, "localhost", ".", "default", false, nil)
 	if err != nil {
 		t.Fatalf("Failed to create config: %v", err)
 	}
@@ -205,7 +205,7 @@ func TestNewWithAuth(t *testing.T) {
 }
 
 func TestServerShutdown(t *testing.T) {
-	cfg, err := config.New(0, "localhost", ".", "default", false) // Port 0 for random port
+	cfg, err := config.New(0, "localhost", ".", "default", false, nil) // Port 0 for random port
 	if err != nil {
 		t.Fatalf("Failed to create config: %v", err)
 	}
@@ -228,7 +228,7 @@ func TestServerShutdown(t *testing.T) {
 }
 
 func TestConcurrentRequests(t *testing.T) {
-	cfg, err := config.New(8080, "localhost", ".", "default", false)
+	cfg, err := config.New(8080, "localhost", ".", "default", false, nil)
 	if err != nil {
 		t.Fatalf("Failed to create config: %v", err)
 	}

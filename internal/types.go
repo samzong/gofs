@@ -2,6 +2,7 @@
 package internal
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"os"
@@ -82,4 +83,27 @@ func (e *APIError) WithStatus(status int) *APIError {
 func (e *APIError) WithDetails(details any) *APIError {
 	e.Details = details
 	return e
+}
+
+// MountInfo holds mount information for request context
+type MountInfo struct {
+	Path     string
+	Name     string
+	Readonly bool
+}
+
+type contextKey string
+
+const mountInfoKey contextKey = "mount_info"
+
+// WithMountInfo adds mount information to the context
+func WithMountInfo(ctx context.Context, path, name string, readonly bool) context.Context {
+	info := MountInfo{Path: path, Name: name, Readonly: readonly}
+	return context.WithValue(ctx, mountInfoKey, info)
+}
+
+// GetMountInfo retrieves mount information from the context
+func GetMountInfo(ctx context.Context) (MountInfo, bool) {
+	info, ok := ctx.Value(mountInfoKey).(MountInfo)
+	return info, ok
 }

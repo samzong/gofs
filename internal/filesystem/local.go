@@ -272,3 +272,28 @@ func (fi *localFileInfo) IsDir() bool {
 func (fi *localFileInfo) ModTime() time.Time {
 	return fi.FileInfo.ModTime()
 }
+
+// ReadonlyFileSystem wraps a FileSystem to make it read-only
+type ReadonlyFileSystem struct {
+	internal.FileSystem
+}
+
+// NewReadonly creates a read-only wrapper around a FileSystem
+func NewReadonly(fs internal.FileSystem) *ReadonlyFileSystem {
+	return &ReadonlyFileSystem{FileSystem: fs}
+}
+
+// Create is disabled for read-only filesystem
+func (r *ReadonlyFileSystem) Create(name string) (io.WriteCloser, error) {
+	return nil, fmt.Errorf("read-only filesystem: cannot create %s", name)
+}
+
+// Mkdir is disabled for read-only filesystem
+func (r *ReadonlyFileSystem) Mkdir(name string, perm os.FileMode) error {
+	return fmt.Errorf("read-only filesystem: cannot create directory %s", name)
+}
+
+// Remove is disabled for read-only filesystem
+func (r *ReadonlyFileSystem) Remove(name string) error {
+	return fmt.Errorf("read-only filesystem: cannot remove %s", name)
+}

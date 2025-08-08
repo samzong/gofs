@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -54,8 +55,8 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Create configuration
-	cfg, err := config.New(flags.Port, flags.Host, flags.Dir, flags.Theme, flags.ShowHidden)
+	// Create configuration with multi-directory support
+	cfg, err := config.New(flags.Port, flags.Host, "", flags.Theme, flags.ShowHidden, flags.Dirs)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Configuration error: %v\n", err)
 		os.Exit(1)
@@ -65,13 +66,8 @@ func main() {
 	// Setup structured logging with slog
 	logger := setupLogger()
 
-	logger.Info("Starting gofs server",
-		slog.String("version", version),
-		slog.String("address", cfg.Address()),
-		slog.String("directory", cfg.Dir),
-		slog.Bool("auth_enabled", flags.Auth != ""),
-		slog.Bool("webdav_enabled", cfg.EnableWebDAV),
-	)
+	// Log startup info
+	logStartupInfo(logger, cfg, flags.Auth != "")
 
 	// Create authentication middleware if needed
 	var authMiddleware *middleware.BasicAuth
@@ -85,23 +81,9 @@ func main() {
 		logger.Info("HTTP Basic Authentication enabled")
 	}
 
-	// Initialize server components
-	fs := filesystem.NewLocal(cfg.Dir, cfg.ShowHidden)
-
-	// Use advanced handler for advanced theme, regular handler otherwise
-	var fileHandler http.Handler
-	if cfg.Theme == "advanced" {
-		fileHandler = handler.NewAdvancedFile(fs, cfg)
-	} else {
-		fileHandler = handler.NewFile(fs, cfg, logger)
-	}
-
-	// Create WebDAV handler if enabled
-	var webdavHandler http.Handler
-	if cfg.EnableWebDAV {
-		webdavHandler = handler.NewWebDAV(fs, cfg, logger)
-		logger.Info("WebDAV server enabled on /dav path (read-only)")
-	}
+	// Create file and WebDAV handlers
+	fileHandler := createFileHandler(cfg, logger)
+	webdavHandler := createWebDAVHandler(cfg, logger)
 
 	srv := server.New(cfg, fileHandler, webdavHandler, authMiddleware, logger)
 
@@ -148,7 +130,10 @@ func showHelp() {
 	fmt.Println()
 	fmt.Println("Options:")
 	fmt.Println("  -a, --auth string   Enable HTTP Basic Authentication with user:password format")
-	fmt.Println("  -d, --dir string    Root directory to serve files from (default \".\")")
+	fmt.Println("  -d, --dir string    Directory mount (can be used multiple times)")
+	fmt.Println("                      Format: [path:]dir[:ro][:name]")
+	fmt.Println("                      Examples: -d \"/config:/etc/app:ro:Configuration\"")
+	fmt.Println("                                -d \"/logs:/var/log::Application Logs\"")
 	fmt.Println("  -h, --help          Show this help message and exit")
 	fmt.Println("  -H, --show-hidden   Show hidden files and directories")
 	fmt.Println("      --host string   Server host address to bind to (default \"127.0.0.1\")")
@@ -160,7 +145,8 @@ func showHelp() {
 	fmt.Println("Environment Variables:")
 	fmt.Println("  GOFS_PORT           Server port (default: 8000)")
 	fmt.Println("  GOFS_HOST           Server host (default: 127.0.0.1)")
-	fmt.Println("  GOFS_DIR            Root directory (default: .)")
+	fmt.Println("  GOFS_DIR            Directory specification - single or semicolon-separated")
+	fmt.Println("                      Examples: \"/srv/files\" or \"/config:/etc:ro;/logs:/var/log\"")
 	fmt.Println("  GOFS_THEME          UI theme (default: default)")
 	fmt.Println("  GOFS_SHOW_HIDDEN    Show hidden files (default: false)")
 	fmt.Println("  GOFS_AUTH           Basic auth credentials (user:password)")
@@ -176,11 +162,22 @@ func showVersion() {
 	fmt.Printf("Go version: %s\n", goVersion)
 }
 
-// cmdFlags represents all command line flags and their values
+// stringSlice implements flag.Value for collecting multiple --dir flags
+type stringSlice []string
+
+func (s *stringSlice) String() string {
+	return strings.Join(*s, ";")
+}
+
+func (s *stringSlice) Set(value string) error {
+	*s = append(*s, value)
+	return nil
+}
+
 type cmdFlags struct {
 	Port         int
 	Host         string
-	Dir          string
+	Dirs         []string // Directory mounts
 	Theme        string
 	ShowHidden   bool
 	Auth         string
@@ -190,56 +187,50 @@ type cmdFlags struct {
 	EnableWebDAV bool
 }
 
-// parseFlags parses command line flags with both long and short forms
+// parseFlags parses command line flags with simplified approach
 func parseFlags() *cmdFlags {
 	f := &cmdFlags{}
+	var dirs stringSlice
 
-	// Define both long and short forms
-	port := flag.Int("port", getEnv("GOFS_PORT", 8000), "Server port")
-	portShort := flag.Int("p", 0, "Server port (shorthand)")
-	host := flag.String("host", getEnv("GOFS_HOST", "127.0.0.1"), "Server host")
-	dir := flag.String("dir", getEnv("GOFS_DIR", "."), "Root directory")
-	dirShort := flag.String("d", "", "Root directory (shorthand)")
-	theme := flag.String("theme", getEnv("GOFS_THEME", "default"), "UI theme")
-	showHidden := flag.Bool("show-hidden", getEnv("GOFS_SHOW_HIDDEN", false), "Show hidden files")
-	hiddenShort := flag.Bool("H", false, "Show hidden files (shorthand)")
-	auth := flag.String("auth", getEnv("GOFS_AUTH", ""), "Basic auth (user:password)")
-	authShort := flag.String("a", "", "Basic auth (shorthand)")
-	help := flag.Bool("help", false, "Show help")
-	helpShort := flag.Bool("h", false, "Show help (shorthand)")
-	versionFlag := flag.Bool("version", false, "Show version")
-	versionShort := flag.Bool("v", false, "Show version (shorthand)")
-	healthCheck := flag.Bool("health-check", false, "Perform health check and exit")
-	enableWebDAV := flag.Bool("enable-webdav", getEnv("GOFS_ENABLE_WEBDAV", false), "Enable WebDAV server on /dav path")
+	// Define flags with both long and short forms using flag.Var
+	flag.IntVar(&f.Port, "port", getEnv("GOFS_PORT", 8000), "Server port")
+	flag.IntVar(&f.Port, "p", getEnv("GOFS_PORT", 8000), "Server port (shorthand)")
+	flag.StringVar(&f.Host, "host", getEnv("GOFS_HOST", "127.0.0.1"), "Server host")
+	flag.Var(&dirs, "d", "Directory mount (shorthand). Format: [path:]dir[:ro][:name]")
+	flag.Var(&dirs, "dir", "Directory mount. Format: [path:]dir[:ro][:name]")
+	flag.StringVar(&f.Theme, "theme", getEnv("GOFS_THEME", "default"), "UI theme")
+	flag.BoolVar(&f.ShowHidden, "show-hidden", getEnv("GOFS_SHOW_HIDDEN", false), "Show hidden files")
+	flag.BoolVar(&f.ShowHidden, "H", getEnv("GOFS_SHOW_HIDDEN", false), "Show hidden files (shorthand)")
+	flag.StringVar(&f.Auth, "auth", getEnv("GOFS_AUTH", ""), "Basic auth (user:password)")
+	flag.StringVar(&f.Auth, "a", getEnv("GOFS_AUTH", ""), "Basic auth (shorthand)")
+	flag.BoolVar(&f.Help, "help", false, "Show help")
+	flag.BoolVar(&f.Help, "h", false, "Show help (shorthand)")
+	flag.BoolVar(&f.Version, "version", false, "Show version")
+	flag.BoolVar(&f.Version, "v", false, "Show version (shorthand)")
+	flag.BoolVar(&f.HealthCheck, "health-check", false, "Perform health check and exit")
+	flag.BoolVar(&f.EnableWebDAV, "enable-webdav", getEnv("GOFS_ENABLE_WEBDAV", false), "Enable WebDAV server")
 
 	flag.Parse()
 
-	// Resolve values with shorthand precedence
-	f.Port = *port
-	if *portShort != 0 {
-		f.Port = *portShort
-	}
-
-	f.Host = *host
-	f.Dir = *dir
-	if *dirShort != "" {
-		f.Dir = *dirShort
-	}
-
-	f.Theme = *theme
-	f.ShowHidden = *showHidden || *hiddenShort
-
-	f.Auth = *auth
-	if *authShort != "" {
-		f.Auth = *authShort
-	}
-
-	f.Help = *help || *helpShort
-	f.Version = *versionFlag || *versionShort
-	f.HealthCheck = *healthCheck
-	f.EnableWebDAV = *enableWebDAV
-
+	// Handle directory configuration
+	f.Dirs = parseDirConfig(dirs, "")
 	return f
+}
+
+// parseDirConfig consolidates directory configuration logic
+func parseDirConfig(cmdDirs []string, _ string) []string {
+	if len(cmdDirs) > 0 {
+		return cmdDirs
+	}
+	// Check environment variable
+	envDirs := getEnv("GOFS_DIR", "")
+	if envDirs == "" {
+		return []string{"."} // Default
+	}
+	if strings.Contains(envDirs, ";") {
+		return strings.Split(envDirs, ";")
+	}
+	return []string{envDirs}
 }
 
 // getEnv is a generic function to get environment variables with type conversion
@@ -271,6 +262,66 @@ func getEnv[T any](key string, defaultValue T) T {
 	}
 
 	return result.(T)
+}
+
+// createFileHandler creates the appropriate file handler based on configuration
+func createFileHandler(cfg *config.Config, logger *slog.Logger) http.Handler {
+	if len(cfg.Dirs) > 1 {
+		return handler.NewMultiDir(cfg.Dirs, cfg, logger)
+	}
+
+	// Single directory handler
+	fs := filesystem.NewLocal(getRootDir(cfg), cfg.ShowHidden)
+	if cfg.Theme == "advanced" {
+		return handler.NewAdvancedFile(fs, cfg)
+	}
+	return handler.NewFile(fs, cfg, logger)
+}
+
+// createWebDAVHandler creates WebDAV handler if enabled
+func createWebDAVHandler(cfg *config.Config, logger *slog.Logger) http.Handler {
+	if !cfg.EnableWebDAV {
+		return nil
+	}
+
+	fs := filesystem.NewLocal(getRootDir(cfg), cfg.ShowHidden)
+	if len(cfg.Dirs) > 1 {
+		logger.Warn("WebDAV only serves the first mounted directory",
+			slog.String("webdav_root", cfg.Dirs[0].Dir),
+			slog.String("webdav_mount", cfg.Dirs[0].Path))
+	}
+	logger.Info("WebDAV server enabled on /dav path (read-only)")
+	return handler.NewWebDAV(fs, cfg, logger)
+}
+
+// getRootDir returns the root directory from configuration
+func getRootDir(cfg *config.Config) string {
+	if len(cfg.Dirs) > 0 {
+		return cfg.Dirs[0].Dir
+	}
+	return "." // Default directory
+}
+
+// logStartupInfo logs server startup information
+func logStartupInfo(logger *slog.Logger, cfg *config.Config, authEnabled bool) {
+	baseAttrs := []slog.Attr{
+		slog.String("version", version),
+		slog.String("address", cfg.Address()),
+		slog.Bool("auth_enabled", authEnabled),
+		slog.Bool("webdav_enabled", cfg.EnableWebDAV),
+	}
+
+	if len(cfg.Dirs) > 1 {
+		dirInfo := make([]string, len(cfg.Dirs))
+		for i, d := range cfg.Dirs {
+			dirInfo[i] = fmt.Sprintf("%s->%s", d.Path, d.Dir)
+		}
+		baseAttrs = append(baseAttrs, slog.Any("directories", dirInfo))
+	} else {
+		baseAttrs = append(baseAttrs, slog.String("directory", getRootDir(cfg)))
+	}
+
+	logger.LogAttrs(context.Background(), slog.LevelInfo, "Starting gofs server", baseAttrs...)
 }
 
 // performHealthCheck performs a lightweight health check via HTTP
