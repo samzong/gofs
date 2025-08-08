@@ -2,6 +2,8 @@ package handler
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,6 +15,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/samzong/gofs/internal"
@@ -54,6 +57,74 @@ type FileItemJSON struct {
 
 type Middleware func(http.Handler) http.Handler
 
+// csrfStore manages CSRF tokens with expiration
+type csrfStore struct {
+	mu     sync.RWMutex
+	tokens map[string]time.Time
+}
+
+func newCSRFStore() *csrfStore {
+	store := &csrfStore{
+		tokens: make(map[string]time.Time),
+	}
+	// Start cleanup goroutine
+	go store.cleanup()
+	return store
+}
+
+func (s *csrfStore) generateToken() string {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		// Fallback to timestamp-based token if crypto rand fails
+		// This should rarely happen
+		b = []byte(fmt.Sprintf("%d-%d", time.Now().UnixNano(), time.Now().Unix()))
+	}
+	token := base64.URLEncoding.EncodeToString(b)
+
+	s.mu.Lock()
+	s.tokens[token] = time.Now().Add(1 * time.Hour)
+	s.mu.Unlock()
+
+	return token
+}
+
+func (s *csrfStore) validateToken(token string) bool {
+	if token == "" {
+		return false
+	}
+
+	s.mu.RLock()
+	expiry, exists := s.tokens[token]
+	s.mu.RUnlock()
+
+	if !exists || time.Now().After(expiry) {
+		return false
+	}
+
+	// Token is valid, remove it (one-time use)
+	s.mu.Lock()
+	delete(s.tokens, token)
+	s.mu.Unlock()
+
+	return true
+}
+
+func (s *csrfStore) cleanup() {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		s.mu.Lock()
+		now := time.Now()
+		for token, expiry := range s.tokens {
+			if now.After(expiry) {
+				delete(s.tokens, token)
+			}
+		}
+		s.mu.Unlock()
+	}
+}
+
 type RequestContext struct {
 	StartTime  time.Time
 	RequestID  string
@@ -63,9 +134,10 @@ type RequestContext struct {
 }
 
 type AdvancedFile struct {
-	fs     internal.FileSystem
-	config *config.Config
-	logger *slog.Logger
+	fs         internal.FileSystem
+	config     *config.Config
+	logger     *slog.Logger
+	csrfTokens *csrfStore
 }
 
 func NewAdvancedFile(fs internal.FileSystem, cfg *config.Config) *AdvancedFile {
@@ -75,9 +147,10 @@ func NewAdvancedFile(fs internal.FileSystem, cfg *config.Config) *AdvancedFile {
 	)
 
 	return &AdvancedFile{
-		fs:     fs,
-		config: cfg,
-		logger: logger,
+		fs:         fs,
+		config:     cfg,
+		logger:     logger,
+		csrfTokens: newCSRFStore(),
 	}
 }
 
@@ -104,9 +177,20 @@ func (h *AdvancedFile) handleRequest(w http.ResponseWriter, r *http.Request) {
 
 func (h *AdvancedFile) handleAPI(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
+	case "/api/csrf":
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		h.handleGetCSRFToken(w, r)
 	case "/api/upload":
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		// Validate CSRF token for upload
+		if !h.validateCSRFRequest(r) {
+			http.Error(w, "Invalid or missing CSRF token", http.StatusForbidden)
 			return
 		}
 		h.handleUpload(w, r)
@@ -115,10 +199,60 @@ func (h *AdvancedFile) handleAPI(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
+		// Validate CSRF token for folder creation
+		if !h.validateCSRFRequest(r) {
+			http.Error(w, "Invalid or missing CSRF token", http.StatusForbidden)
+			return
+		}
 		h.handleCreateFolder(w, r)
 	default:
 		http.NotFound(w, r)
 	}
+}
+
+func (h *AdvancedFile) handleGetCSRFToken(w http.ResponseWriter, r *http.Request) {
+	token := h.csrfTokens.generateToken()
+	response := map[string]string{"token": token}
+	if err := writeJSON(w, response); err != nil {
+		h.logger.Warn("Failed to write CSRF token response",
+			slog.String("error", err.Error()))
+	}
+}
+
+func (h *AdvancedFile) validateCSRFRequest(r *http.Request) bool {
+	// Check header first
+	token := r.Header.Get("X-CSRF-Token")
+	if token == "" {
+		// Fallback to form value for multipart uploads
+		token = r.FormValue("csrf_token")
+	}
+
+	// Additional security: Check Origin/Referer headers
+	origin := r.Header.Get("Origin")
+	referer := r.Header.Get("Referer")
+
+	// If Origin or Referer is present, verify it matches our host
+	if origin != "" || referer != "" {
+		host := r.Host
+		expectedOrigin := fmt.Sprintf("http://%s", host)
+		expectedOriginHTTPS := fmt.Sprintf("https://%s", host)
+
+		if origin != "" && origin != expectedOrigin && origin != expectedOriginHTTPS {
+			h.logger.Warn("CSRF: Origin mismatch",
+				slog.String("origin", origin),
+				slog.String("expected", expectedOrigin))
+			return false
+		}
+
+		if referer != "" && !strings.HasPrefix(referer, expectedOrigin) && !strings.HasPrefix(referer, expectedOriginHTTPS) {
+			h.logger.Warn("CSRF: Referer mismatch",
+				slog.String("referer", referer),
+				slog.String("expected", expectedOrigin))
+			return false
+		}
+	}
+
+	return h.csrfTokens.validateToken(token)
 }
 
 func (h *AdvancedFile) handleUpload(w http.ResponseWriter, r *http.Request) {

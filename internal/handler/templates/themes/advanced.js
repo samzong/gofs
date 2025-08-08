@@ -11,7 +11,8 @@
         sortOrder: 'asc',
         searchQuery: '',
         uploadProgress: 0,
-        uploadXHR: null
+        uploadXHR: null,
+        csrfToken: null
     };
 
     // DOM Elements
@@ -46,6 +47,34 @@
         setupEventListeners();
         setupDragAndDrop();
         setupKeyboardShortcuts();
+        // Fetch initial CSRF token
+        fetchCSRFToken();
+    }
+
+    // CSRF Token Management
+    function fetchCSRFToken() {
+        fetch('/api/csrf')
+            .then(response => response.json())
+            .then(data => {
+                state.csrfToken = data.token;
+            })
+            .catch(err => {
+                console.error('Failed to fetch CSRF token:', err);
+            });
+    }
+
+    function getCSRFToken() {
+        // If we don't have a token, fetch one synchronously (fallback)
+        if (!state.csrfToken) {
+            const xhr = new XMLHttpRequest();
+            xhr.open('GET', '/api/csrf', false); // Synchronous request (not ideal but works as fallback)
+            xhr.send();
+            if (xhr.status === 200) {
+                const data = JSON.parse(xhr.responseText);
+                state.csrfToken = data.token;
+            }
+        }
+        return state.csrfToken;
     }
 
     // Theme Management
@@ -189,6 +218,12 @@
         // Create FormData
         const formData = new FormData();
         formData.append('file', file);
+        
+        // Add CSRF token to form data
+        const csrfToken = getCSRFToken();
+        if (csrfToken) {
+            formData.append('csrf_token', csrfToken);
+        }
 
         // Create XHR for progress tracking
         const xhr = new XMLHttpRequest();
@@ -237,7 +272,16 @@
 
         // Send request
         xhr.open('POST', '/api/upload');
+        // Also set the CSRF token in header for additional security
+        if (csrfToken) {
+            xhr.setRequestHeader('X-CSRF-Token', csrfToken);
+        }
         xhr.send(formData);
+        
+        // After successful upload, fetch a new CSRF token for next operation
+        xhr.addEventListener('loadend', () => {
+            fetchCSRFToken();
+        });
     }
 
     function cancelUpload() {
@@ -342,21 +386,30 @@
             return;
         }
         
+        const csrfToken = getCSRFToken();
         fetch('/api/folder', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken || ''
+            },
             body: JSON.stringify({ path: name })
         })
         .then(response => {
             if (response.ok) {
                 showNotification(`Folder "${name}" created successfully!`, 'success');
+                // Fetch new CSRF token for next operation
+                fetchCSRFToken();
                 setTimeout(() => location.reload(), 500);
             } else {
                 showNotification('Failed to create folder.', 'error');
+                // Fetch new token on failure as well
+                fetchCSRFToken();
             }
         })
         .catch(err => {
             showNotification('Error creating folder.', 'error');
+            fetchCSRFToken();
         });
     }
 

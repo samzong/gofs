@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"unicode"
+
+	"golang.org/x/text/unicode/norm"
 )
 
 func SafePath(path string) string {
@@ -11,14 +14,40 @@ func SafePath(path string) string {
 		return ""
 	}
 
+	// Check for null bytes
 	if strings.Contains(path, "\x00") {
 		return ""
 	}
 
-	if strings.Contains(path, "..") {
-		return ""
+	// Normalize Unicode to prevent encoding-based bypasses
+	path = norm.NFC.String(path)
+
+	// Check for various forms of parent directory references
+	dangerousPatterns := []string{
+		"..",
+		"..\\",
+		"../",
+		"..;",
+		"%2e%2e",
+		"%252e%252e",
+		"0x2e0x2e",
 	}
 
+	lowerPath := strings.ToLower(path)
+	for _, pattern := range dangerousPatterns {
+		if strings.Contains(lowerPath, pattern) {
+			return ""
+		}
+	}
+
+	// Check for control characters
+	for _, r := range path {
+		if unicode.IsControl(r) && r != '\t' {
+			return ""
+		}
+	}
+
+	// Remove leading path separators
 	path = strings.TrimPrefix(path, "/")
 	path = strings.TrimPrefix(path, "\\")
 
@@ -26,17 +55,58 @@ func SafePath(path string) string {
 		return ""
 	}
 
+	// Clean the path
 	path = filepath.Clean(path)
 
-	if strings.Contains(path, "..") || strings.HasPrefix(path, "/") || strings.HasPrefix(path, "\\") {
+	// Additional validation after cleaning
+	if strings.Contains(path, "..") ||
+		strings.HasPrefix(path, "/") ||
+		strings.HasPrefix(path, "\\") ||
+		filepath.IsAbs(path) {
 		return ""
 	}
 
+	// Check for Windows drive letters and UNC paths
 	if len(path) >= 2 && path[1] == ':' {
 		return ""
 	}
 
+	// Check for UNC paths
+	if strings.HasPrefix(path, "\\\\") || strings.HasPrefix(path, "//") {
+		return ""
+	}
+
+	// Final check: ensure the path doesn't escape after normalization
+	if !isWithinBounds(path) {
+		return ""
+	}
+
 	return path
+}
+
+// isWithinBounds performs a final check to ensure the path stays within bounds
+func isWithinBounds(path string) bool {
+	// Split the path and check each component
+	parts := strings.FieldsFunc(path, func(r rune) bool {
+		return r == '/' || r == '\\'
+	})
+
+	depth := 0
+	for _, part := range parts {
+		if part == "" || part == "." {
+			continue
+		}
+		if part == ".." {
+			depth--
+			if depth < 0 {
+				return false // Escaping the root
+			}
+		} else {
+			depth++
+		}
+	}
+
+	return true
 }
 
 func IsHidden(name string) bool {
