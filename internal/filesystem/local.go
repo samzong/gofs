@@ -1,4 +1,3 @@
-// Package filesystem provides file system abstractions for the gofs server.
 package filesystem
 
 import (
@@ -14,13 +13,11 @@ import (
 	"github.com/samzong/gofs/pkg/fileutil"
 )
 
-// Local implements the FileSystem interface for local file system access.
 type Local struct {
 	root       string
 	showHidden bool
 }
 
-// NewLocal creates a new local file system instance.
 func NewLocal(root string, showHidden bool) *Local {
 	return &Local{
 		root:       filepath.Clean(root),
@@ -28,12 +25,10 @@ func NewLocal(root string, showHidden bool) *Local {
 	}
 }
 
-// Root returns the root directory being served.
 func (fs *Local) Root() string {
 	return fs.root
 }
 
-// Open opens the file at the given path for reading.
 func (fs *Local) Open(name string) (io.ReadCloser, error) {
 	fullPath := fs.getFullPath(name)
 	if fullPath == "" {
@@ -44,7 +39,6 @@ func (fs *Local) Open(name string) (io.ReadCloser, error) {
 		}
 	}
 
-	// Verify symlink safety
 	if err := fs.verifySymlinkSafety(fullPath); err != nil {
 		return nil, err
 	}

@@ -23,21 +23,15 @@ import (
 )
 
 var (
-	// version contains the build version information set by linker flags.
-	version = "dev"
-	// gitCommit contains the git commit hash set by linker flags.
+	version   = "dev"
 	gitCommit = "unknown"
-	// buildTime contains the build timestamp set by linker flags.
 	buildTime = "unknown"
-	// goVersion contains the Go version used to build the binary.
 	goVersion = "unknown"
 )
 
 func main() {
-	// Parse command line flags with simplified approach
 	flags := parseFlags()
 
-	// Handle special flags first
 	if flags.Help {
 		showHelp()
 		return
@@ -55,7 +49,6 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Create configuration with multi-directory support
 	cfg, err := config.New(flags.Port, flags.Host, "", flags.Theme, flags.ShowHidden, flags.Dirs)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Configuration error: %v\n", err)
@@ -63,13 +56,9 @@ func main() {
 	}
 	cfg.EnableWebDAV = flags.EnableWebDAV
 
-	// Setup structured logging with slog
 	logger := setupLogger()
-
-	// Log startup info
 	logStartupInfo(logger, cfg, flags.Auth != "")
 
-	// Create authentication middleware if needed
 	var authMiddleware *middleware.BasicAuth
 	if flags.Auth != "" {
 		authMiddleware, err = middleware.NewBasicAuthFromCredentials(flags.Auth)
@@ -81,13 +70,11 @@ func main() {
 		logger.Info("HTTP Basic Authentication enabled")
 	}
 
-	// Create file and WebDAV handlers
 	fileHandler := createFileHandler(cfg, logger)
 	webdavHandler := createWebDAVHandler(cfg, logger)
 
 	srv := server.New(cfg, fileHandler, webdavHandler, authMiddleware, logger)
 
-	// Start server
 	serverErrors := make(chan error, 1)
 	go func() {
 		logger.Info("Server starting", slog.String("address", cfg.Address()))
@@ -96,7 +83,6 @@ func main() {
 		}
 	}()
 
-	// Wait for shutdown signal
 	shutdown := make(chan os.Signal, 1)
 	signal.Notify(shutdown, syscall.SIGINT, syscall.SIGTERM)
 
@@ -162,7 +148,6 @@ func showVersion() {
 	fmt.Printf("Go version: %s\n", goVersion)
 }
 
-// stringSlice implements flag.Value for collecting multiple --dir flags
 type stringSlice []string
 
 func (s *stringSlice) String() string {
@@ -187,12 +172,10 @@ type cmdFlags struct {
 	EnableWebDAV bool
 }
 
-// parseFlags parses command line flags with simplified approach
 func parseFlags() *cmdFlags {
 	f := &cmdFlags{}
 	var dirs stringSlice
 
-	// Define flags with both long and short forms using flag.Var
 	flag.IntVar(&f.Port, "port", getEnv("GOFS_PORT", 8000), "Server port")
 	flag.IntVar(&f.Port, "p", getEnv("GOFS_PORT", 8000), "Server port (shorthand)")
 	flag.StringVar(&f.Host, "host", getEnv("GOFS_HOST", "127.0.0.1"), "Server host")
@@ -212,20 +195,17 @@ func parseFlags() *cmdFlags {
 
 	flag.Parse()
 
-	// Handle directory configuration
 	f.Dirs = parseDirConfig(dirs, "")
 	return f
 }
 
-// parseDirConfig consolidates directory configuration logic
 func parseDirConfig(cmdDirs []string, _ string) []string {
 	if len(cmdDirs) > 0 {
 		return cmdDirs
 	}
-	// Check environment variable
 	envDirs := getEnv("GOFS_DIR", "")
 	if envDirs == "" {
-		return []string{"."} // Default
+		return []string{"."}
 	}
 	if strings.Contains(envDirs, ";") {
 		return strings.Split(envDirs, ";")
@@ -233,14 +213,12 @@ func parseDirConfig(cmdDirs []string, _ string) []string {
 	return []string{envDirs}
 }
 
-// getEnv is a generic function to get environment variables with type conversion
 func getEnv[T any](key string, defaultValue T) T {
 	value := os.Getenv(key)
 	if value == "" {
 		return defaultValue
 	}
 
-	// Type switch to handle different types
 	var result any
 	switch any(defaultValue).(type) {
 	case string:
@@ -261,16 +239,17 @@ func getEnv[T any](key string, defaultValue T) T {
 		return defaultValue
 	}
 
-	return result.(T)
+	if converted, ok := result.(T); ok {
+		return converted
+	}
+	return defaultValue
 }
 
-// createFileHandler creates the appropriate file handler based on configuration
 func createFileHandler(cfg *config.Config, logger *slog.Logger) http.Handler {
 	if len(cfg.Dirs) > 1 {
 		return handler.NewMultiDir(cfg.Dirs, cfg, logger)
 	}
 
-	// Single directory handler
 	fs := filesystem.NewLocal(getRootDir(cfg), cfg.ShowHidden)
 	if cfg.Theme == "advanced" {
 		return handler.NewAdvancedFile(fs, cfg)
@@ -278,7 +257,6 @@ func createFileHandler(cfg *config.Config, logger *slog.Logger) http.Handler {
 	return handler.NewFile(fs, cfg, logger)
 }
 
-// createWebDAVHandler creates WebDAV handler if enabled
 func createWebDAVHandler(cfg *config.Config, logger *slog.Logger) http.Handler {
 	if !cfg.EnableWebDAV {
 		return nil
@@ -294,15 +272,13 @@ func createWebDAVHandler(cfg *config.Config, logger *slog.Logger) http.Handler {
 	return handler.NewWebDAV(fs, cfg, logger)
 }
 
-// getRootDir returns the root directory from configuration
 func getRootDir(cfg *config.Config) string {
 	if len(cfg.Dirs) > 0 {
 		return cfg.Dirs[0].Dir
 	}
-	return "." // Default directory
+	return "."
 }
 
-// logStartupInfo logs server startup information
 func logStartupInfo(logger *slog.Logger, cfg *config.Config, authEnabled bool) {
 	baseAttrs := []slog.Attr{
 		slog.String("version", version),

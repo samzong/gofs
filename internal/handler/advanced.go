@@ -20,15 +20,9 @@ import (
 
 	"github.com/samzong/gofs/internal"
 	"github.com/samzong/gofs/internal/config"
+	"github.com/samzong/gofs/internal/constants"
 	"github.com/samzong/gofs/internal/handler/templates"
 	"github.com/samzong/gofs/pkg/fileutil"
-)
-
-const (
-	uploadTimeout    = 5 * time.Minute
-	fileServeTimeout = 30 * time.Second
-	directoryTimeout = 10 * time.Second
-	templateTimeout  = 5 * time.Second
 )
 
 type UploadResponse struct {
@@ -57,7 +51,6 @@ type FileItemJSON struct {
 
 type Middleware func(http.Handler) http.Handler
 
-// csrfStore manages CSRF tokens with expiration
 type csrfStore struct {
 	mu     sync.RWMutex
 	tokens map[string]time.Time
@@ -67,7 +60,6 @@ func newCSRFStore() *csrfStore {
 	store := &csrfStore{
 		tokens: make(map[string]time.Time),
 	}
-	// Start cleanup goroutine
 	go store.cleanup()
 	return store
 }
@@ -75,14 +67,13 @@ func newCSRFStore() *csrfStore {
 func (s *csrfStore) generateToken() string {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
-		// Fallback to timestamp-based token if crypto rand fails
-		// This should rarely happen
+		// Fallback for rare crypto/rand failures
 		b = []byte(fmt.Sprintf("%d-%d", time.Now().UnixNano(), time.Now().Unix()))
 	}
 	token := base64.URLEncoding.EncodeToString(b)
 
 	s.mu.Lock()
-	s.tokens[token] = time.Now().Add(1 * time.Hour)
+	s.tokens[token] = time.Now().Add(constants.CSRFTokenExpiry)
 	s.mu.Unlock()
 
 	return token
@@ -101,7 +92,6 @@ func (s *csrfStore) validateToken(token string) bool {
 		return false
 	}
 
-	// Token is valid, remove it (one-time use)
 	s.mu.Lock()
 	delete(s.tokens, token)
 	s.mu.Unlock()
@@ -110,7 +100,7 @@ func (s *csrfStore) validateToken(token string) bool {
 }
 
 func (s *csrfStore) cleanup() {
-	ticker := time.NewTicker(5 * time.Minute)
+	ticker := time.NewTicker(constants.CSRFCleanupInterval)
 	defer ticker.Stop()
 
 	for range ticker.C {
@@ -367,9 +357,9 @@ func (h *AdvancedFile) handleFileRequest(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *AdvancedFile) serveStaticCSS(w http.ResponseWriter, r *http.Request) {
-	// Set cache headers for CSS (cache for 1 hour)
+	// Set cache headers for CSS
 	w.Header().Set("Content-Type", "text/css; charset=utf-8")
-	w.Header().Set("Cache-Control", "public, max-age=3600, immutable")
+	w.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d, immutable", constants.StaticAssetCacheMaxAge))
 	w.Header().Set("ETag", fmt.Sprintf(`"%x"`, templates.AdvancedCSS))
 
 	// Check if client has cached version
@@ -384,9 +374,9 @@ func (h *AdvancedFile) serveStaticCSS(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AdvancedFile) serveStaticJS(w http.ResponseWriter, r *http.Request) {
-	// Set cache headers for JS (cache for 1 hour)
+	// Set cache headers for JS
 	w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
-	w.Header().Set("Cache-Control", "public, max-age=3600, immutable")
+	w.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d, immutable", constants.StaticAssetCacheMaxAge))
 	w.Header().Set("ETag", fmt.Sprintf(`"%x"`, templates.AdvancedJS))
 
 	// Check if client has cached version
@@ -623,11 +613,11 @@ func (h *AdvancedFile) timeoutMiddleware(next http.Handler) http.Handler {
 
 		switch {
 		case strings.HasPrefix(r.URL.Path, "/api/upload"):
-			timeout = uploadTimeout
+			timeout = constants.UploadTimeout
 		case strings.HasPrefix(r.URL.Path, "/api/"):
-			timeout = directoryTimeout
+			timeout = constants.DirectoryTimeout
 		default:
-			timeout = fileServeTimeout
+			timeout = constants.FileServeTimeout
 		}
 
 		ctx, cancel := context.WithTimeout(r.Context(), timeout)

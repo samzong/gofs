@@ -171,7 +171,7 @@ func ParseDir(dirStr string) (DirMount, error) {
 	return mount, nil
 }
 
-// ValidateDirs checks for path conflicts and validates directory mounts
+// ValidateDirs checks for path conflicts and validates directory mounts with security checks
 func ValidateDirs(dirs []DirMount) error {
 	paths := make(map[string]string)
 	for _, d := range dirs {
@@ -187,11 +187,71 @@ func ValidateDirs(dirs []DirMount) error {
 			return fmt.Errorf("path must start with /: %s", d.Path)
 		}
 
+		// Security validation: prevent directory traversal in mount paths
+		if err := validateMountPath(d.Path); err != nil {
+			return fmt.Errorf("invalid mount path %s: %w", d.Path, err)
+		}
+
+		// Validate local directory path
+		if err := validateLocalDir(d.Dir); err != nil {
+			return fmt.Errorf("invalid local directory %s: %w", d.Dir, err)
+		}
+
 		// Check for conflicts
 		if existing, ok := paths[d.Path]; ok {
 			return fmt.Errorf("path conflict: %s maps to both %s and %s", d.Path, existing, d.Dir)
 		}
 		paths[d.Path] = d.Dir
 	}
+	return nil
+}
+
+// validateMountPath ensures mount paths are safe and don't contain dangerous patterns
+func validateMountPath(path string) error {
+	// Clean the path
+	cleanPath := filepath.Clean(path)
+
+	// Check for path traversal attempts
+	if strings.Contains(cleanPath, "..") {
+		return errors.New("path contains directory traversal sequence")
+	}
+
+	// Ensure normalized path matches original (after cleaning)
+	if cleanPath != path && cleanPath+"/" != path {
+		return errors.New("path contains unsafe characters or sequences")
+	}
+
+	// Check for null bytes and other control characters
+	for _, r := range path {
+		if r < 32 && r != 9 && r != 10 && r != 13 { // Allow tab, LF, CR
+			return errors.New("path contains control characters")
+		}
+	}
+
+	return nil
+}
+
+// validateLocalDir validates that the local directory exists and is accessible
+func validateLocalDir(dir string) error {
+	// Clean the directory path
+	cleanDir := filepath.Clean(dir)
+
+	// Convert to absolute path
+	absDir, err := filepath.Abs(cleanDir)
+	if err != nil {
+		return fmt.Errorf("cannot resolve absolute path: %w", err)
+	}
+
+	// Check if directory exists
+	info, err := os.Stat(absDir)
+	if err != nil {
+		return fmt.Errorf("directory does not exist: %w", err)
+	}
+
+	// Ensure it's actually a directory
+	if !info.IsDir() {
+		return errors.New("path is not a directory")
+	}
+
 	return nil
 }

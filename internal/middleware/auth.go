@@ -1,4 +1,3 @@
-// Package middleware provides HTTP middleware components for the gofs file server.
 package middleware
 
 import (
@@ -14,28 +13,21 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// authCache stores successful authentication results with expiration
 type authCache struct {
 	validUntil time.Time
 }
 
-// BasicAuth implements HTTP Basic Authentication middleware following RFC 7617.
-// It provides secure password hashing and constant-time comparison to prevent timing attacks.
-// Includes a time-limited cache to avoid expensive bcrypt operations on every request.
+// BasicAuth implements HTTP Basic Authentication with timing attack protection.
+// Uses bcrypt for password hashing and includes request-scoped caching.
 type BasicAuth struct {
 	realm        string
 	username     string
 	passwordHash []byte
-
-	// Cache for successful authentications to avoid bcrypt on every request
-	cacheMu  sync.RWMutex
-	cache    map[string]*authCache
-	cacheTTL time.Duration
+	cacheMu      sync.RWMutex
+	cache        map[string]*authCache
+	cacheTTL     time.Duration
 }
 
-// NewBasicAuth creates a new Basic Authentication middleware with the specified credentials.
-// The realm parameter defines the authentication realm shown to users.
-// The password is securely hashed using bcrypt.
 func NewBasicAuth(realm, username, password string) (*BasicAuth, error) {
 	if username == "" {
 		return nil, errors.New("username cannot be empty")
@@ -44,10 +36,9 @@ func NewBasicAuth(realm, username, password string) (*BasicAuth, error) {
 		return nil, errors.New("password cannot be empty")
 	}
 	if realm == "" {
-		realm = "gofs" // default realm
+		realm = "gofs"
 	}
 
-	// Hash the password with bcrypt (cost 12 for security)
 	passwordHash, err := bcrypt.GenerateFromPassword([]byte(password), 12)
 	if err != nil {
 		return nil, fmt.Errorf("failed to hash password: %w", err)
@@ -58,18 +49,15 @@ func NewBasicAuth(realm, username, password string) (*BasicAuth, error) {
 		username:     username,
 		passwordHash: passwordHash,
 		cache:        make(map[string]*authCache),
-		cacheTTL:     5 * time.Minute, // Cache successful auth for 5 minutes
+		cacheTTL:     5 * time.Minute,
 	}, nil
 }
 
-// NewBasicAuthFromCredentials parses credentials in "user:password" format and creates BasicAuth middleware.
-// This is the primary method for command-line usage with --auth/-a flag.
 func NewBasicAuthFromCredentials(credentials string) (*BasicAuth, error) {
 	if credentials == "" {
 		return nil, errors.New("credentials cannot be empty")
 	}
 
-	// Parse credentials in "user:password" format
 	colonIndex := strings.IndexByte(credentials, ':')
 	if colonIndex == -1 {
 		return nil, errors.New("invalid credentials format: expected 'user:password'")
