@@ -188,8 +188,11 @@ func (fs *Local) getFullPath(name string) string {
 	// Build full path
 	fullPath := filepath.Join(fs.root, safeName)
 
-	// Final safety check: ensure path is within root
-	if !strings.HasPrefix(fullPath, fs.root) {
+	// Final safety check: ensure path is within root using filepath.Rel
+	cleanRoot := filepath.Clean(fs.root)
+	cleanPath := filepath.Clean(fullPath)
+	relPath, err := filepath.Rel(cleanRoot, cleanPath)
+	if err != nil || strings.HasPrefix(relPath, "..") || filepath.IsAbs(relPath) {
 		return ""
 	}
 
@@ -222,9 +225,13 @@ func (fs *Local) verifySymlinkSafety(fullPath string) error {
 			}
 		}
 
-		// Clean and check if resolved path is within root
+		// Clean both paths for consistent comparison
 		resolved = filepath.Clean(resolved)
-		if !strings.HasPrefix(resolved, fs.root) {
+		cleanRoot := filepath.Clean(fs.root)
+
+		// Use filepath.Rel to properly verify containment
+		relPath, err := filepath.Rel(cleanRoot, resolved)
+		if err != nil || strings.HasPrefix(relPath, "..") || filepath.IsAbs(relPath) {
 			return &internal.APIError{
 				Code:    "SYMLINK_ATTACK",
 				Message: "Symlink points outside root directory",
