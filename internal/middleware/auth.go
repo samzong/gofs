@@ -8,16 +8,29 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
 )
 
+// authCache stores successful authentication results with expiration
+type authCache struct {
+	validUntil time.Time
+}
+
 // BasicAuth implements HTTP Basic Authentication middleware following RFC 7617.
 // It provides secure password hashing and constant-time comparison to prevent timing attacks.
+// Includes a time-limited cache to avoid expensive bcrypt operations on every request.
 type BasicAuth struct {
 	realm        string
 	username     string
 	passwordHash []byte
+
+	// Cache for successful authentications to avoid bcrypt on every request
+	cacheMu  sync.RWMutex
+	cache    map[string]*authCache
+	cacheTTL time.Duration
 }
 
 // NewBasicAuth creates a new Basic Authentication middleware with the specified credentials.
@@ -44,6 +57,8 @@ func NewBasicAuth(realm, username, password string) (*BasicAuth, error) {
 		realm:        realm,
 		username:     username,
 		passwordHash: passwordHash,
+		cache:        make(map[string]*authCache),
+		cacheTTL:     5 * time.Minute, // Cache successful auth for 5 minutes
 	}, nil
 }
 
@@ -97,8 +112,21 @@ func (ba *BasicAuth) Middleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// Decode the base64 encoded credentials
+		// Check cache first to avoid expensive bcrypt on every request
 		encoded := auth[6:] // Remove "Basic " prefix
+
+		// Try to get from cache
+		ba.cacheMu.RLock()
+		cached, found := ba.cache[encoded]
+		ba.cacheMu.RUnlock()
+
+		if found && time.Now().Before(cached.validUntil) {
+			// Cache hit and still valid
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		// Cache miss or expired, perform full authentication
 		decoded, err := base64.StdEncoding.DecodeString(encoded)
 		if err != nil {
 			ba.requireAuth(w)
@@ -127,7 +155,16 @@ func (ba *BasicAuth) Middleware(next http.Handler) http.Handler {
 		}
 
 		if usernameMatch == 1 && passwordMatch == 1 {
-			// Authentication successful, continue to next handler
+			// Authentication successful, update cache
+			ba.cacheMu.Lock()
+			ba.cache[encoded] = &authCache{
+				validUntil: time.Now().Add(ba.cacheTTL),
+			}
+			// Clean up expired entries while we have the lock
+			ba.cleanupCacheLocked()
+			ba.cacheMu.Unlock()
+
+			// Continue to next handler
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -135,6 +172,17 @@ func (ba *BasicAuth) Middleware(next http.Handler) http.Handler {
 		// Authentication failed
 		ba.requireAuth(w)
 	})
+}
+
+// cleanupCacheLocked removes expired entries from the cache.
+// Must be called with cacheMu write lock held.
+func (ba *BasicAuth) cleanupCacheLocked() {
+	now := time.Now()
+	for key, entry := range ba.cache {
+		if now.After(entry.validUntil) {
+			delete(ba.cache, key)
+		}
+	}
 }
 
 // requireAuth sends a 401 Unauthorized response with WWW-Authenticate header.

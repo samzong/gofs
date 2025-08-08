@@ -40,7 +40,7 @@ gofs -theme advanced
 
 ## Usage
 
-```
+```bash
 Usage: gofs [options]
 
 Options:

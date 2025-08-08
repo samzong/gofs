@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"html/template"
 	"io"
 	"log/slog"
 	"mime/multipart"
@@ -93,6 +92,10 @@ func (h *AdvancedFile) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (h *AdvancedFile) handleRequest(w http.ResponseWriter, r *http.Request) {
 	switch {
+	case r.URL.Path == "/static/theme.css":
+		h.serveStaticCSS(w, r)
+	case r.URL.Path == "/static/theme.js":
+		h.serveStaticJS(w, r)
 	case strings.HasPrefix(r.URL.Path, "/api/"):
 		h.handleAPI(w, r)
 	default:
@@ -232,6 +235,40 @@ func (h *AdvancedFile) handleFileRequest(w http.ResponseWriter, r *http.Request)
 	h.serveFile(w, r, safePath)
 }
 
+func (h *AdvancedFile) serveStaticCSS(w http.ResponseWriter, r *http.Request) {
+	// Set cache headers for CSS (cache for 1 hour)
+	w.Header().Set("Content-Type", "text/css; charset=utf-8")
+	w.Header().Set("Cache-Control", "public, max-age=3600, immutable")
+	w.Header().Set("ETag", fmt.Sprintf(`"%x"`, templates.AdvancedCSS))
+
+	// Check if client has cached version
+	if match := r.Header.Get("If-None-Match"); match != "" {
+		if match == fmt.Sprintf(`"%x"`, templates.AdvancedCSS) {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+	}
+
+	_, _ = w.Write([]byte(templates.AdvancedCSS))
+}
+
+func (h *AdvancedFile) serveStaticJS(w http.ResponseWriter, r *http.Request) {
+	// Set cache headers for JS (cache for 1 hour)
+	w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+	w.Header().Set("Cache-Control", "public, max-age=3600, immutable")
+	w.Header().Set("ETag", fmt.Sprintf(`"%x"`, templates.AdvancedJS))
+
+	// Check if client has cached version
+	if match := r.Header.Get("If-None-Match"); match != "" {
+		if match == fmt.Sprintf(`"%x"`, templates.AdvancedJS) {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+	}
+
+	_, _ = w.Write([]byte(templates.AdvancedJS))
+}
+
 func (h *AdvancedFile) renderAdvancedDirectory(w http.ResponseWriter, r *http.Request, dirPath string) {
 	files, err := h.fs.ReadDir(dirPath)
 	if err != nil {
@@ -307,16 +344,12 @@ func (h *AdvancedFile) renderAdvancedDirectory(w http.ResponseWriter, r *http.Re
 		Files       []FileItem
 		FileCount   int
 		Breadcrumbs []BreadcrumbItem
-		CSS         template.CSS
-		JS          template.JS
 	}{
 		Path:        "/" + dirPath,
 		Parent:      dirPath != "" && dirPath != ".",
 		Files:       items,
 		FileCount:   len(items),
 		Breadcrumbs: breadcrumbs,
-		CSS:         template.CSS(templates.AdvancedCSS),
-		JS:          template.JS(templates.AdvancedJS),
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -348,6 +381,9 @@ func (h *AdvancedFile) serveFile(w http.ResponseWriter, r *http.Request, path st
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("X-Frame-Options", "DENY")
 	w.Header().Set("X-XSS-Protection", "1; mode=block")
+	w.Header().Set("Content-Security-Policy",
+		"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "+
+			"img-src 'self' data:; font-src 'self'")
 
 	filename := filepath.Base(path)
 	w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=%q", filename))
