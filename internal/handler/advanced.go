@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"mime/multipart"
 	"net/http"
-	"os"
 	"path"
 	"path/filepath"
 	"sort"
@@ -187,15 +186,13 @@ func (h *AdvancedFile) handleCreateFolder(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	targetPath := filepath.Join(h.config.Dir, folderName)
-	if err := os.Mkdir(targetPath, 0755); err != nil {
+	if err := h.fs.Mkdir(folderName, 0755); err != nil {
 		h.writeError(w, "Failed to create folder", http.StatusInternalServerError)
 		return
 	}
 
 	h.logger.Info("Folder created successfully",
-		slog.String("folder", folderName),
-		slog.String("path", targetPath))
+		slog.String("folder", folderName))
 
 	response := FolderResponse{
 		Success: true,
@@ -432,10 +429,9 @@ func (h *AdvancedFile) parseUploadRequest(r *http.Request) (multipart.File, *mul
 }
 
 func (h *AdvancedFile) saveUploadedFile(ctx context.Context, src multipart.File, filename string) error {
-	targetPath := filepath.Join(h.config.Dir, filename)
-	dst, err := os.Create(targetPath)
+	dst, err := h.fs.Create(filename)
 	if err != nil {
-		return fmt.Errorf("creating file %q: %w", targetPath, err)
+		return fmt.Errorf("creating file %q: %w", filename, err)
 	}
 	defer dst.Close()
 
@@ -447,7 +443,7 @@ func (h *AdvancedFile) saveUploadedFile(ctx context.Context, src multipart.File,
 
 	select {
 	case <-ctx.Done():
-		os.Remove(targetPath)
+		_ = h.fs.Remove(filename)
 		return ctx.Err()
 	case err := <-done:
 		if err != nil {

@@ -2,6 +2,7 @@
 package filesystem
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -128,6 +129,47 @@ func (fs *Local) ReadDir(name string) ([]internal.FileInfo, error) {
 	}
 
 	return result, nil
+}
+
+// Create creates or truncates the named file for writing.
+// The returned io.WriteCloser must be closed after use.
+func (fs *Local) Create(name string) (io.WriteCloser, error) {
+	path := fs.getFullPath(name)
+	if path == "" {
+		return nil, fmt.Errorf("invalid path: %s", name)
+	}
+
+	file, err := os.Create(path)
+	if err != nil {
+		return nil, fmt.Errorf("creating file %q: %w", path, err)
+	}
+	return file, nil
+}
+
+// Mkdir creates a directory with the specified name and permission.
+func (fs *Local) Mkdir(name string, perm os.FileMode) error {
+	path := fs.getFullPath(name)
+	if path == "" {
+		return fmt.Errorf("invalid path: %s", name)
+	}
+
+	if err := os.Mkdir(path, perm); err != nil {
+		return fmt.Errorf("creating directory %q: %w", path, err)
+	}
+	return nil
+}
+
+// Remove removes the named file or empty directory.
+func (fs *Local) Remove(name string) error {
+	path := fs.getFullPath(name)
+	if path == "" {
+		return fmt.Errorf("invalid path: %s", name)
+	}
+
+	if err := os.Remove(path); err != nil {
+		return fmt.Errorf("removing %q: %w", path, err)
+	}
+	return nil
 }
 
 // getFullPath converts a request path to a full filesystem path.

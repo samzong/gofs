@@ -4,12 +4,15 @@ package internal
 import (
 	"io"
 	"net/http"
+	"os"
 	"time"
 )
 
 // FileSystem defines the interface for file system operations.
 // It provides abstraction over different storage backends.
 type FileSystem interface {
+	// Read operations
+
 	// Open opens the named file for reading.
 	Open(name string) (io.ReadCloser, error)
 
@@ -18,6 +21,17 @@ type FileSystem interface {
 
 	// ReadDir reads the directory and returns a list of directory entries.
 	ReadDir(name string) ([]FileInfo, error)
+
+	// Write operations
+
+	// Create creates or truncates the named file for writing.
+	Create(name string) (io.WriteCloser, error)
+
+	// Mkdir creates a directory with the specified name and permission.
+	Mkdir(name string, perm os.FileMode) error
+
+	// Remove removes the named file or empty directory.
+	Remove(name string) error
 }
 
 // FileInfo provides information about a file or directory.
