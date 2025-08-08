@@ -10,6 +10,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -231,15 +232,15 @@ func (h *AdvancedFile) handleFileRequest(w http.ResponseWriter, r *http.Request)
 	h.serveFile(w, r, safePath)
 }
 
-func (h *AdvancedFile) renderAdvancedDirectory(w http.ResponseWriter, r *http.Request, path string) {
-	files, err := h.fs.ReadDir(path)
+func (h *AdvancedFile) renderAdvancedDirectory(w http.ResponseWriter, r *http.Request, dirPath string) {
+	files, err := h.fs.ReadDir(dirPath)
 	if err != nil {
 		http.Error(w, "Cannot read directory", http.StatusInternalServerError)
 		return
 	}
 
 	if strings.Contains(r.Header.Get("Accept"), "application/json") {
-		h.renderJSON(w, path, files)
+		h.renderJSON(w, dirPath, files)
 		return
 	}
 
@@ -257,14 +258,15 @@ func (h *AdvancedFile) renderAdvancedDirectory(w http.ResponseWriter, r *http.Re
 	}
 
 	var breadcrumbs []BreadcrumbItem
-	if path != "" && path != "." {
-		parts := strings.Split(path, "/")
+	if dirPath != "" && dirPath != "." {
+		parts := strings.Split(strings.Trim(dirPath, "/"), "/")
 		currentPath := ""
 		for _, part := range parts {
 			if part == "" {
 				continue
 			}
-			currentPath = filepath.Join(currentPath, part)
+			// Use path.Join for proper URL path construction (always uses forward slashes)
+			currentPath = path.Join(currentPath, part)
 			breadcrumbs = append(breadcrumbs, BreadcrumbItem{
 				Name: part,
 				Path: "/" + currentPath,
@@ -308,8 +310,8 @@ func (h *AdvancedFile) renderAdvancedDirectory(w http.ResponseWriter, r *http.Re
 		CSS         template.CSS
 		JS          template.JS
 	}{
-		Path:        "/" + path,
-		Parent:      path != "" && path != ".",
+		Path:        "/" + dirPath,
+		Parent:      dirPath != "" && dirPath != ".",
 		Files:       items,
 		FileCount:   len(items),
 		Breadcrumbs: breadcrumbs,
