@@ -147,7 +147,7 @@ func TestNew(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			server := New(cfg, testHandler, tt.authMiddleware, tt.logger)
+			server := New(cfg, testHandler, nil, tt.authMiddleware, tt.logger)
 
 			if server == nil {
 				t.Error("New() returned nil server")
@@ -185,7 +185,7 @@ func TestNewWithAuth(t *testing.T) {
 	}
 
 	logger := slog.Default()
-	server := New(cfg, testHandler, authMiddleware, logger)
+	server := New(cfg, testHandler, nil, authMiddleware, logger)
 
 	if server == nil {
 		t.Error("New() returned nil server")
@@ -215,7 +215,7 @@ func TestServerShutdown(t *testing.T) {
 	})
 
 	logger := slog.Default()
-	server := New(cfg, testHandler, nil, logger)
+	server := New(cfg, testHandler, nil, nil, logger)
 
 	// Test shutdown on nil server
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
@@ -239,7 +239,7 @@ func TestConcurrentRequests(t *testing.T) {
 	})
 
 	logger := slog.Default()
-	server := New(cfg, testHandler, nil, logger)
+	server := New(cfg, testHandler, nil, nil, logger)
 
 	// Test concurrent requests
 	const numConcurrent = 10

@@ -21,6 +21,7 @@ type Config struct {
 	EnableSecurity bool
 	Theme          string
 	ShowHidden     bool
+	EnableWebDAV   bool
 }
 
 func New(port int, host, dir, theme string, showHidden bool) (*Config, error) {

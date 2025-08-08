@@ -16,12 +16,13 @@ import (
 
 // Server implements a lightweight HTTP file server with graceful shutdown support.
 type Server struct {
-	config   *config.Config
-	handler  http.Handler
-	server   *http.Server
-	listener net.Listener
-	logger   *slog.Logger
-	mu       sync.RWMutex
+	config        *config.Config
+	handler       http.Handler
+	webdavHandler http.Handler
+	server        *http.Server
+	listener      net.Listener
+	logger        *slog.Logger
+	mu            sync.RWMutex
 }
 
 // healthCheckMiddleware wraps a handler to add health check endpoint.
@@ -73,14 +74,16 @@ func (rw *responseWriter) WriteHeader(code int) {
 
 // New creates a new HTTP server instance with the given configuration and handler.
 // The authMiddleware parameter is optional; if nil, no authentication is required.
-func New(cfg *config.Config, handler http.Handler, authMiddleware *middleware.BasicAuth, logger *slog.Logger) *Server {
+// The webdavHandler parameter is optional; if provided, WebDAV will be enabled on /dav path.
+func New(cfg *config.Config, handler http.Handler, webdavHandler http.Handler,
+	authMiddleware *middleware.BasicAuth, logger *slog.Logger) *Server {
 	if logger == nil {
 		logger = slog.Default()
 	}
 
 	componentLogger := logger.With(slog.String("component", "server"))
 
-	// Build simple middleware chain
+	// Build simple middleware chain for the main handler
 	var finalHandler = handler
 
 	// Add health check middleware (first in chain)
@@ -94,17 +97,40 @@ func New(cfg *config.Config, handler http.Handler, authMiddleware *middleware.Ba
 	// Add HTTP request logging middleware (last in chain)
 	finalHandler = loggingMiddleware(componentLogger)(finalHandler)
 
+	// Apply middleware to WebDAV handler if provided
+	var finalWebDAVHandler http.Handler
+	if webdavHandler != nil {
+		finalWebDAVHandler = webdavHandler
+		if authMiddleware != nil {
+			finalWebDAVHandler = authMiddleware.Middleware(finalWebDAVHandler)
+		}
+		finalWebDAVHandler = loggingMiddleware(componentLogger)(finalWebDAVHandler)
+	}
+
+	// Create a router if WebDAV is enabled
+	var rootHandler http.Handler
+	if finalWebDAVHandler != nil {
+		mux := http.NewServeMux()
+		mux.Handle("/dav/", finalWebDAVHandler)
+		mux.Handle("/", finalHandler)
+		rootHandler = mux
+	} else {
+		rootHandler = finalHandler
+	}
+
 	componentLogger.Info("Server initialized",
 		slog.String("host", cfg.Host),
 		slog.Int("port", cfg.Port),
 		slog.String("dir", cfg.Dir),
 		slog.Bool("auth_enabled", authMiddleware != nil),
+		slog.Bool("webdav_enabled", webdavHandler != nil),
 	)
 
 	return &Server{
-		config:  cfg,
-		handler: finalHandler,
-		logger:  componentLogger,
+		config:        cfg,
+		handler:       rootHandler,
+		webdavHandler: finalWebDAVHandler,
+		logger:        componentLogger,
 	}
 }
 

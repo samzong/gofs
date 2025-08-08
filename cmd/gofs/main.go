@@ -60,6 +60,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Configuration error: %v\n", err)
 		os.Exit(1)
 	}
+	cfg.EnableWebDAV = flags.EnableWebDAV
 
 	// Setup structured logging with slog
 	logger := setupLogger()
@@ -69,6 +70,7 @@ func main() {
 		slog.String("address", cfg.Address()),
 		slog.String("directory", cfg.Dir),
 		slog.Bool("auth_enabled", flags.Auth != ""),
+		slog.Bool("webdav_enabled", cfg.EnableWebDAV),
 	)
 
 	// Create authentication middleware if needed
@@ -94,7 +96,14 @@ func main() {
 		fileHandler = handler.NewFile(fs, cfg, logger)
 	}
 
-	srv := server.New(cfg, fileHandler, authMiddleware, logger)
+	// Create WebDAV handler if enabled
+	var webdavHandler http.Handler
+	if cfg.EnableWebDAV {
+		webdavHandler = handler.NewWebDAV(fs, cfg, logger)
+		logger.Info("WebDAV server enabled on /dav path (read-only)")
+	}
+
+	srv := server.New(cfg, fileHandler, webdavHandler, authMiddleware, logger)
 
 	// Start server
 	serverErrors := make(chan error, 1)
@@ -145,6 +154,7 @@ func showHelp() {
 	fmt.Println("      --host string   Server host address to bind to (default \"127.0.0.1\")")
 	fmt.Println("  -p, --port int      Server port number to listen on (default 8000)")
 	fmt.Println("      --theme string  UI theme: default, classic, advanced (default \"default\")")
+	fmt.Println("      --enable-webdav Enable WebDAV server on /dav path (read-only)")
 	fmt.Println("  -v, --version       Show version information and exit")
 	fmt.Println()
 	fmt.Println("Environment Variables:")
@@ -154,6 +164,7 @@ func showHelp() {
 	fmt.Println("  GOFS_THEME          UI theme (default: default)")
 	fmt.Println("  GOFS_SHOW_HIDDEN    Show hidden files (default: false)")
 	fmt.Println("  GOFS_AUTH           Basic auth credentials (user:password)")
+	fmt.Println("  GOFS_ENABLE_WEBDAV  Enable WebDAV server (default: false)")
 	fmt.Println()
 	fmt.Println("Note: Command line flags override environment variables")
 }
@@ -167,15 +178,16 @@ func showVersion() {
 
 // cmdFlags represents all command line flags and their values
 type cmdFlags struct {
-	Port        int
-	Host        string
-	Dir         string
-	Theme       string
-	ShowHidden  bool
-	Auth        string
-	Help        bool
-	Version     bool
-	HealthCheck bool
+	Port         int
+	Host         string
+	Dir          string
+	Theme        string
+	ShowHidden   bool
+	Auth         string
+	Help         bool
+	Version      bool
+	HealthCheck  bool
+	EnableWebDAV bool
 }
 
 // parseFlags parses command line flags with both long and short forms
@@ -198,6 +210,7 @@ func parseFlags() *cmdFlags {
 	versionFlag := flag.Bool("version", false, "Show version")
 	versionShort := flag.Bool("v", false, "Show version (shorthand)")
 	healthCheck := flag.Bool("health-check", false, "Perform health check and exit")
+	enableWebDAV := flag.Bool("enable-webdav", getEnv("GOFS_ENABLE_WEBDAV", false), "Enable WebDAV server on /dav path")
 
 	flag.Parse()
 
@@ -224,6 +237,7 @@ func parseFlags() *cmdFlags {
 	f.Help = *help || *helpShort
 	f.Version = *versionFlag || *versionShort
 	f.HealthCheck = *healthCheck
+	f.EnableWebDAV = *enableWebDAV
 
 	return f
 }
