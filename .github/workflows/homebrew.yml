@@ -7,13 +7,14 @@ on:
         description: "Select the tag to update Homebrew"
         required: true
         type: string
-  release:
-    types: [published]
+  push:
+    tags:
+      - 'v*'
 
 jobs:
   update-homebrew:
     runs-on: macos-latest
-    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     permissions:
       contents: read
       pull-requests: write
@@ -22,19 +23,25 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           INPUT_TAG: ${{ inputs.tag }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          PUSH_TAG: ${{ github.ref_name }}
         run: |
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             echo "VERSION=$INPUT_TAG" >> $GITHUB_ENV
             echo "Detected version from workflow_dispatch: $INPUT_TAG"
-          elif [ "$EVENT_NAME" = "release" ]; then
-            echo "VERSION=$RELEASE_TAG" >> $GITHUB_ENV
-            echo "Detected version from release: $RELEASE_TAG"
+          elif [ "$EVENT_NAME" = "push" ]; then
+            echo "VERSION=$PUSH_TAG" >> $GITHUB_ENV
+            echo "Detected version from push tag: $PUSH_TAG"
           else
             echo "❌ Unexpected event: $EVENT_NAME"
             exit 1
           fi
 
+      - name: Wait for release to be created (only for push events)
+        if: github.event_name == 'push'
+        run: |
+          echo "Waiting for GoReleaser to create the release..."
+          sleep 60
+          
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
