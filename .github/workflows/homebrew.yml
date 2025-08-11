@@ -8,21 +8,12 @@ on:
         required: true
         type: string
   release:
-    types: [released, published]
-  workflow_run:
-    workflows: ["CI"]
-    types:
-      - completed
-    branches:
-      - main
+    types: [published]
 
 jobs:
   update-homebrew:
     runs-on: macos-latest
-    if: |
-      (github.event_name == 'release' && github.event.action == 'published') ||
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.head_branch, 'refs/tags/v')) ||
-      github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
     permissions:
       contents: read
       pull-requests: write
@@ -32,18 +23,17 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           INPUT_TAG: ${{ inputs.tag }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
-          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
         run: |
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             echo "VERSION=$INPUT_TAG" >> $GITHUB_ENV
+            echo "Detected version from workflow_dispatch: $INPUT_TAG"
           elif [ "$EVENT_NAME" = "release" ]; then
             echo "VERSION=$RELEASE_TAG" >> $GITHUB_ENV
-          elif [ "$EVENT_NAME" = "workflow_run" ]; then
-            # Extract version from workflow_run head_branch (refs/tags/v1.0.0 -> v1.0.0)
-            VERSION=$(echo "$HEAD_BRANCH" | sed 's/refs\/tags\///')
-            echo "VERSION=$VERSION" >> $GITHUB_ENV
+            echo "Detected version from release: $RELEASE_TAG"
+          else
+            echo "❌ Unexpected event: $EVENT_NAME"
+            exit 1
           fi
-          echo "Detected version: $VERSION"
 
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -60,15 +50,14 @@ jobs:
           echo "✅ Version format is valid: $VERSION"
 
       - name: Check if release exists
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           CLEAN_VERSION=$(echo "$VERSION" | sed 's/^v//')
           echo "Checking release: $VERSION"
           
           # Check if release exists
-          curl -s -f -H "Accept: application/vnd.github.v3+json" \
-            "https://api.github.com/repos/${{ github.repository }}/releases/tags/$VERSION" > /dev/null
-          
-          if [ $? -eq 0 ]; then
+          if gh release view "$VERSION" --repo "${{ github.repository }}" >/dev/null 2>&1; then
             echo "✅ Release $VERSION exists"
           else
             echo "❌ Release $VERSION not found"
@@ -79,6 +68,7 @@ jobs:
         env:
           # Fine-grained PAT with specific repository access
           GH_PAT: ${{ secrets.HOMEBREW_PAT }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           if [ -z "$GH_PAT" ]; then
             echo "❌ HOMEBREW_PAT secret is required for cross-repository operations"
@@ -88,4 +78,9 @@ jobs:
             echo "  Add it as HOMEBREW_PAT secret in repository settings"
             exit 1
           fi
-          make update-homebrew
+          
+          # Make sure script is executable
+          chmod +x ./scripts/update-homebrew.sh
+          
+          # Call the script directly instead of make
+          ./scripts/update-homebrew.sh "$VERSION"
