@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"archive/zip"
 	"context"
 	"crypto/rand"
 	"encoding/base64"
@@ -23,6 +24,7 @@ import (
 	"github.com/samzong/gofs/internal/handler/templates"
 	"github.com/samzong/gofs/pkg/fileutil"
 	"github.com/samzong/gofs/pkg/httprange"
+	"github.com/samzong/gofs/pkg/zipstream"
 )
 
 type UploadResponse struct {
@@ -67,7 +69,6 @@ func newCSRFStore() *csrfStore {
 func (s *csrfStore) generateToken() string {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
-		// Fallback for rare crypto/rand failures
 		b = []byte(fmt.Sprintf("%d-%d", time.Now().UnixNano(), time.Now().Unix()))
 	}
 	token := base64.URLEncoding.EncodeToString(b)
@@ -124,10 +125,11 @@ type RequestContext struct {
 }
 
 type AdvancedFile struct {
-	fs         internal.FileSystem
-	config     *config.Config
-	logger     *slog.Logger
-	csrfTokens *csrfStore
+	fs           internal.FileSystem
+	config       *config.Config
+	logger       *slog.Logger
+	csrfTokens   *csrfStore
+	zipSemaphore chan struct{}
 }
 
 func NewAdvancedFile(fs internal.FileSystem, cfg *config.Config) *AdvancedFile {
@@ -137,10 +139,11 @@ func NewAdvancedFile(fs internal.FileSystem, cfg *config.Config) *AdvancedFile {
 	)
 
 	return &AdvancedFile{
-		fs:         fs,
-		config:     cfg,
-		logger:     logger,
-		csrfTokens: newCSRFStore(),
+		fs:           fs,
+		config:       cfg,
+		logger:       logger,
+		csrfTokens:   newCSRFStore(),
+		zipSemaphore: make(chan struct{}, 3),
 	}
 }
 
@@ -178,7 +181,6 @@ func (h *AdvancedFile) handleAPI(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		// Validate CSRF token for upload
 		if !h.validateCSRFRequest(r) {
 			http.Error(w, "Invalid or missing CSRF token", http.StatusForbidden)
 			return
@@ -189,12 +191,21 @@ func (h *AdvancedFile) handleAPI(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		// Validate CSRF token for folder creation
 		if !h.validateCSRFRequest(r) {
 			http.Error(w, "Invalid or missing CSRF token", http.StatusForbidden)
 			return
 		}
 		h.handleCreateFolder(w, r)
+	case "/api/zip":
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		if !h.validateCSRFRequest(r) {
+			http.Error(w, "Invalid or missing CSRF token", http.StatusForbidden)
+			return
+		}
+		h.handleZipDownload(w, r)
 	default:
 		http.NotFound(w, r)
 	}
@@ -210,18 +221,14 @@ func (h *AdvancedFile) handleGetCSRFToken(w http.ResponseWriter, r *http.Request
 }
 
 func (h *AdvancedFile) validateCSRFRequest(r *http.Request) bool {
-	// Check header first
 	token := r.Header.Get("X-CSRF-Token")
 	if token == "" {
-		// Fallback to form value for multipart uploads
 		token = r.FormValue("csrf_token")
 	}
 
-	// Additional security: Check Origin/Referer headers
 	origin := r.Header.Get("Origin")
 	referer := r.Header.Get("Referer")
 
-	// If Origin or Referer is present, verify it matches our host
 	if origin != "" || referer != "" {
 		host := r.Host
 		expectedOrigin := fmt.Sprintf("http://%s", host)
@@ -329,6 +336,197 @@ func (h *AdvancedFile) handleCreateFolder(w http.ResponseWriter, r *http.Request
 	}
 }
 
+type ZipRequest struct {
+	Paths []string `json:"paths"`
+	Name  string   `json:"name"`
+}
+
+func (h *AdvancedFile) handleZipDownload(w http.ResponseWriter, r *http.Request) {
+	select {
+	case h.zipSemaphore <- struct{}{}:
+		defer func() { <-h.zipSemaphore }()
+	default:
+		h.logger.Warn("Too many concurrent ZIP downloads")
+		http.Error(w, "Too many concurrent downloads, please try again later", http.StatusTooManyRequests)
+		return
+	}
+
+	var req ZipRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.writeError(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+
+	if len(req.Paths) == 0 {
+		h.writeError(w, "No files selected", http.StatusBadRequest)
+		return
+	}
+
+	var entries []zipstream.FileEntry
+	var totalSize int64
+
+	for _, p := range req.Paths {
+		safePath := fileutil.SafePath(strings.TrimPrefix(p, "/"))
+		if safePath == "" {
+			continue
+		}
+
+		info, err := h.fs.Stat(safePath)
+		if err != nil {
+			h.logger.Debug("File not found for ZIP",
+				slog.String("path", safePath),
+				slog.String("error", err.Error()))
+			continue
+		}
+
+		if info.IsDir() {
+			dirSize, fileCount := h.calculateDirSize(safePath)
+			totalSize += dirSize
+			h.logger.Debug("Adding directory to ZIP",
+				slog.String("path", safePath),
+				slog.Int64("size", dirSize),
+				slog.Int("files", fileCount))
+		} else {
+			totalSize += info.Size()
+			entries = append(entries, zipstream.FileEntry{
+				Path: safePath,
+				Name: filepath.Base(safePath),
+				Info: info,
+			})
+		}
+	}
+
+	if len(entries) == 0 && len(req.Paths) > 0 {
+		for _, p := range req.Paths {
+			safePath := fileutil.SafePath(strings.TrimPrefix(p, "/"))
+			info, err := h.fs.Stat(safePath)
+			if err == nil && info.IsDir() {
+				h.collectDirFiles(safePath, safePath, &entries)
+			}
+		}
+	}
+
+	if len(entries) == 0 {
+		h.writeError(w, "No valid files to download", http.StatusBadRequest)
+		return
+	}
+
+	zipName := req.Name
+	if zipName == "" {
+		if len(entries) == 1 {
+			zipName = strings.TrimSuffix(entries[0].Name, filepath.Ext(entries[0].Name)) + ".zip"
+		} else {
+			zipName = fmt.Sprintf("download_%d.zip", time.Now().Unix())
+		}
+	}
+	if !strings.HasSuffix(zipName, ".zip") {
+		zipName += ".zip"
+	}
+
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", zipName))
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+
+	h.logger.Info("Starting ZIP download",
+		slog.String("filename", zipName),
+		slog.Int("file_count", len(entries)),
+		slog.Int64("total_size", totalSize))
+
+	opts := zipstream.Options{
+		CompressionLevel: zip.Store,
+		MaxSize:          500 * 1024 * 1024,
+		BufferSize:       32 * 1024,
+	}
+
+	zw := zipstream.NewWriter(w, opts)
+	defer zw.Close()
+
+	for _, entry := range entries {
+		file, err := h.fs.Open(entry.Path)
+		if err != nil {
+			h.logger.Warn("Failed to open file for ZIP",
+				slog.String("path", entry.Path),
+				slog.String("error", err.Error()))
+			continue
+		}
+
+		entry.Reader = file
+		if err := zw.AddFile(entry); err != nil {
+			file.Close()
+			h.logger.Warn("Failed to add file to ZIP",
+				slog.String("path", entry.Path),
+				slog.String("error", err.Error()))
+			continue
+		}
+		file.Close()
+	}
+
+	h.logger.Info("ZIP download completed",
+		slog.String("filename", zipName),
+		slog.Int("files_processed", len(entries)))
+}
+
+func (h *AdvancedFile) calculateDirSize(dirPath string) (int64, int) {
+	var totalSize int64
+	var fileCount int
+
+	files, err := h.fs.ReadDir(dirPath)
+	if err != nil {
+		return 0, 0
+	}
+
+	for _, file := range files {
+		if !h.config.ShowHidden && strings.HasPrefix(file.Name(), ".") {
+			continue
+		}
+
+		fullPath := filepath.Join(dirPath, file.Name())
+		if file.IsDir() {
+			size, count := h.calculateDirSize(fullPath)
+			totalSize += size
+			fileCount += count
+		} else {
+			totalSize += file.Size()
+			fileCount++
+		}
+	}
+
+	return totalSize, fileCount
+}
+
+func (h *AdvancedFile) collectDirFiles(basePath, currentPath string, entries *[]zipstream.FileEntry) {
+	files, err := h.fs.ReadDir(currentPath)
+	if err != nil {
+		h.logger.Warn("Failed to read directory for ZIP",
+			slog.String("path", currentPath),
+			slog.String("error", err.Error()))
+		return
+	}
+
+	for _, file := range files {
+		if !h.config.ShowHidden && strings.HasPrefix(file.Name(), ".") {
+			continue
+		}
+
+		fullPath := filepath.Join(currentPath, file.Name())
+
+		relPath, err := filepath.Rel(basePath, fullPath)
+		if err != nil {
+			relPath = file.Name()
+		}
+
+		if file.IsDir() {
+			h.collectDirFiles(basePath, fullPath, entries)
+		} else {
+			*entries = append(*entries, zipstream.FileEntry{
+				Path: fullPath,
+				Name: relPath,
+				Info: file,
+			})
+		}
+	}
+}
+
 func (h *AdvancedFile) handleFileRequest(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -357,12 +555,10 @@ func (h *AdvancedFile) handleFileRequest(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *AdvancedFile) serveStaticCSS(w http.ResponseWriter, r *http.Request) {
-	// Set cache headers for CSS
 	w.Header().Set("Content-Type", "text/css; charset=utf-8")
 	w.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d, immutable", constants.StaticAssetCacheMaxAge))
 	w.Header().Set("ETag", fmt.Sprintf(`"%x"`, templates.AdvancedCSS))
 
-	// Check if client has cached version
 	if match := r.Header.Get("If-None-Match"); match != "" {
 		if match == fmt.Sprintf(`"%x"`, templates.AdvancedCSS) {
 			w.WriteHeader(http.StatusNotModified)
@@ -374,12 +570,10 @@ func (h *AdvancedFile) serveStaticCSS(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AdvancedFile) serveStaticJS(w http.ResponseWriter, r *http.Request) {
-	// Set cache headers for JS
 	w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
 	w.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d, immutable", constants.StaticAssetCacheMaxAge))
 	w.Header().Set("ETag", fmt.Sprintf(`"%x"`, templates.AdvancedJS))
 
-	// Check if client has cached version
 	if match := r.Header.Get("If-None-Match"); match != "" {
 		if match == fmt.Sprintf(`"%x"`, templates.AdvancedJS) {
 			w.WriteHeader(http.StatusNotModified)
@@ -423,7 +617,6 @@ func (h *AdvancedFile) renderAdvancedDirectory(w http.ResponseWriter, r *http.Re
 			if part == "" {
 				continue
 			}
-			// Use path.Join for proper URL path construction (always uses forward slashes)
 			currentPath = path.Join(currentPath, part)
 			breadcrumbs = append(breadcrumbs, BreadcrumbItem{
 				Name: part,
@@ -499,7 +692,6 @@ func (h *AdvancedFile) serveFile(w http.ResponseWriter, r *http.Request, path st
 		return
 	}
 
-	// Set security headers
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("X-Frame-Options", "DENY")
 	w.Header().Set("X-XSS-Protection", "1; mode=block")
@@ -507,27 +699,21 @@ func (h *AdvancedFile) serveFile(w http.ResponseWriter, r *http.Request, path st
 		"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "+
 			"img-src 'self' data:; font-src 'self'")
 
-	// Parse Range header for resumable downloads
 	rangeHeader := r.Header.Get("Range")
 	rng, err := httprange.ParseRange(rangeHeader, info.Size())
 	if err != nil {
 		if err == httprange.ErrUnsatisfiableRange {
-			// Send 416 Range Not Satisfiable
 			httprange.WriteRangeNotSatisfiable(w, info.Size())
 			return
 		}
-		// For other errors, serve full content
 		rng = nil
 	}
 
-	// Determine MIME type
 	mimeType := fileutil.DetectMimeType(path)
 	filename := filepath.Base(path)
 
-	// Check if the file is seekable
 	seeker, seekable := file.(io.ReadSeeker)
 	if !seekable && rng != nil {
-		// File doesn't support seeking, serve full content
 		h.logger.Debug("File doesn't support seeking, serving full content",
 			slog.String("path", path),
 			slog.String("component", "advanced_file_handler"),
@@ -535,9 +721,7 @@ func (h *AdvancedFile) serveFile(w http.ResponseWriter, r *http.Request, path st
 		rng = nil
 	}
 
-	// Serve content based on range request
 	if rng != nil {
-		// Serve partial content
 		h.logger.Debug("Serving partial content",
 			slog.String("path", path),
 			slog.Int64("start", rng.Start),
@@ -556,7 +740,6 @@ func (h *AdvancedFile) serveFile(w http.ResponseWriter, r *http.Request, path st
 			)
 		}
 	} else {
-		// Serve full content
 		w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=%q", filename))
 
 		if err := httprange.ServeFullContent(w, file, info.Size(), mimeType); err != nil {

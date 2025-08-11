@@ -1,8 +1,5 @@
-/* GoFS Advanced Theme - Modern File Manager UI */
-
-/* CSS Variables & Theme */
+/* GoFS Advanced Theme */
 :root {
-    /* Colors - Light Theme */
     --color-primary: #1d4ed8;
     --color-primary-hover: #1e40af;
     --color-secondary: #64748b;
@@ -19,30 +16,20 @@
     
     --color-upload: #3b82f6;
     --color-selection: rgba(29, 78, 216, 0.1);
-    
-    /* Spacing */
     --spacing-xs: 0.25rem;
     --spacing-sm: 0.5rem;
     --spacing-md: 1rem;
     --spacing-lg: 1.5rem;
     --spacing-xl: 2rem;
-    
-    /* Typography */
     --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     --font-mono: "SF Mono", Monaco, Consolas, "Courier New", monospace;
-    
-    /* Border Radius */
     --radius-sm: 0.25rem;
     --radius-md: 0.5rem;
     --radius-lg: 0.75rem;
-    
-    /* Shadows */
     --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
     --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
     --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
 }
-
-/* Dark Theme */
 [data-theme="dark"] {
     --color-background: #0f172a;
     --color-surface: #1e293b;
@@ -52,8 +39,6 @@
     --color-text-secondary: #94a3b8;
     --color-selection: rgba(59, 130, 246, 0.2);
 }
-
-/* Reset & Base Styles */
 * {
     margin: 0;
     padding: 0;
@@ -91,8 +76,6 @@ button {
 input {
     font-family: inherit;
 }
-
-/* Container */
 .container {
     max-width: 1200px;
     margin: 0 auto;
@@ -106,7 +89,6 @@ input {
     }
 }
 
-/* Layout Modes */
 :root {
     --layout-mode: 'centered';
     --container-transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -116,14 +98,13 @@ body {
     min-height: 100vh;
     display: flex;
     flex-direction: column;
-    padding-bottom: 60px; /* Reserve space for fixed footer */
+    padding-bottom: 60px;
 }
 
 .main-content {
     flex: 1;
 }
 
-/* Layout Toggle Styles */
 .layout-centered .header-content,
 .layout-centered .breadcrumb-content,  
 .layout-centered .toolbar-content,
@@ -144,7 +125,6 @@ body {
     transition: var(--container-transition);
 }
 
-/* Header */
 .header {
     background: var(--color-surface);
     border-bottom: 1px solid var(--color-border);
@@ -237,7 +217,6 @@ body {
     color: var(--color-text);
 }
 
-/* Breadcrumb */
 .breadcrumb {
     background: var(--color-surface);
     border-bottom: 1px solid var(--color-border);
@@ -272,7 +251,6 @@ body {
     opacity: 0.5;
 }
 
-/* Toolbar */
 .toolbar {
     background: var(--color-background);
     border-bottom: 1px solid var(--color-border);
@@ -328,7 +306,6 @@ body {
     color: var(--color-text-secondary);
 }
 
-/* Drop Zone */
 .drop-zone {
     display: none;
     position: fixed;
@@ -352,7 +329,6 @@ body {
     margin-bottom: var(--spacing-md);
 }
 
-/* Main Content */
 .main-content {
     flex: 1;
     overflow-y: auto;
@@ -364,18 +340,15 @@ body {
     padding: var(--spacing-lg);
 }
 
-/* File Container */
 .file-container {
     display: grid;
     gap: var(--spacing-md);
 }
 
-/* Grid View */
 .grid-view {
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
 }
 
-/* List View */
 .list-view {
     grid-template-columns: 1fr;
     gap: var(--spacing-xs);
@@ -408,7 +381,6 @@ body {
     gap: var(--spacing-lg);
 }
 
-/* File Item */
 .file-item {
     display: flex;
     flex-direction: column;
@@ -466,7 +438,6 @@ body {
     display: none;
 }
 
-/* Empty State */
 .empty-state {
     display: flex;
     flex-direction: column;
@@ -492,7 +463,6 @@ body {
     font-size: 0.875rem;
 }
 
-/* Upload Progress */
 .upload-progress {
     position: fixed;
     bottom: var(--spacing-lg);
@@ -558,7 +528,6 @@ body {
     color: var(--color-text-secondary);
 }
 
-/* Modal */
 .modal {
     position: fixed;
     inset: 0;
@@ -605,7 +574,6 @@ body {
     overflow-y: auto;
 }
 
-/* Responsive Design */
 @media (max-width: 640px) {
     .container {
         margin: 0;
@@ -688,7 +656,6 @@ body {
     }
 }
 
-/* Animations */
 @keyframes fadeIn {
     from { opacity: 0; }
     to { opacity: 1; }
@@ -713,13 +680,11 @@ body {
     animation: slideUp 0.3s ease;
 }
 
-/* Accessibility */
 :focus-visible {
     outline: 2px solid var(--color-primary);
     outline-offset: 2px;
 }
 
-/* Header Actions Enhancement */
 .header-actions {
     display: flex;
     gap: var(--spacing-xs);
@@ -754,7 +719,6 @@ body {
     color: var(--color-primary);
 }
 
-/* Button Icon Transitions */
 .btn-icon svg {
     transition: opacity 0.2s ease, transform 0.2s ease;
 }
@@ -763,7 +727,6 @@ body {
     transform: scale(1.1);
 }
 
-/* Footer Styles */
 .footer {
     position: fixed;
     bottom: 0;
@@ -800,7 +763,6 @@ body {
     background: var(--color-surface-hover);
 }
 
-/* Animation Keyframes */
 @keyframes fadeInUp {
     from {
         opacity: 0;
@@ -812,7 +774,6 @@ body {
     }
 }
 
-/* Responsive Footer */
 @media (max-width: 768px) {
     body {
         padding-bottom: 50px;
@@ -823,7 +784,6 @@ body {
     }
 }
 
-/* Layout responsive adjustments */
 @media (max-width: 640px) {
     .header-actions {
         gap: var(--spacing-xs);
@@ -846,13 +806,161 @@ body {
     /* Tablet styles if needed */
 }
 
-/* Print Styles */
+.file-container.selection-mode .file-item {
+    padding-left: 2.5rem;
+    position: relative;
+}
+
+.file-checkbox {
+    position: absolute;
+    left: var(--spacing-sm);
+    top: 50%;
+    transform: translateY(-50%);
+    width: 1.125rem;
+    height: 1.125rem;
+    accent-color: var(--color-primary);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.file-container.selection-mode .file-checkbox {
+    opacity: 1;
+}
+
+.file-item.selected {
+    background: var(--color-selection);
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.2);
+}
+
+.file-item.selected:hover {
+    background: var(--color-selection);
+}
+
+.selection-toolbar {
+    position: fixed;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--color-primary);
+    color: white;
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    z-index: 200;
+    animation: slideUp 0.3s ease;
+}
+
+.selection-toolbar .selection-count {
+    font-weight: 500;
+    min-width: 120px;
+}
+
+.selection-toolbar button {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: white;
+    padding: var(--spacing-xs) var(--spacing-md);
+    border-radius: var(--radius-sm);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.selection-toolbar button:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.3);
+    transform: translateY(-1px);
+}
+
+.selection-toolbar button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.selection-toolbar .download-selected {
+    background: white;
+    color: var(--color-primary);
+    font-weight: 600;
+}
+
+.selection-toolbar .download-selected:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.95);
+}
+
+.selection-toolbar .close-selection {
+    background: transparent;
+    padding: var(--spacing-xs);
+    font-size: 1.25rem;
+    margin-left: var(--spacing-sm);
+}
+
+#multiSelectBtn.active {
+    background: var(--color-primary);
+    color: white;
+    border-color: var(--color-primary);
+}
+
+#multiSelectBtn.active:hover {
+    background: var(--color-primary-hover);
+}
+
+.list-view.selection-mode .file-item {
+    padding-left: 3rem;
+}
+
+.list-view .file-checkbox {
+    left: var(--spacing-md);
+}
+
+@media (max-width: 640px) {
+    .selection-toolbar {
+        bottom: 70px;
+        left: var(--spacing-sm);
+        right: var(--spacing-sm);
+        transform: none;
+        padding: var(--spacing-sm) var(--spacing-md);
+        font-size: 0.875rem;
+    }
+    
+    .selection-toolbar .selection-count {
+        min-width: auto;
+        font-size: 0.813rem;
+    }
+    
+    .selection-toolbar button {
+        padding: var(--spacing-xs) var(--spacing-sm);
+        font-size: 0.813rem;
+    }
+}
+
+@keyframes selectPulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(29, 78, 216, 0.4);
+    }
+    70% {
+        box-shadow: 0 0 0 6px rgba(29, 78, 216, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(29, 78, 216, 0);
+    }
+}
+
+.file-item.selected {
+    animation: selectPulse 0.3s ease;
+}
+
 @media print {
     .header,
     .toolbar,
     .upload-progress,
     .modal,
-    .footer {
+    .footer,
+    .selection-toolbar {
         display: none;
     }
     
@@ -862,5 +970,9 @@ body {
     
     .file-container {
         grid-template-columns: 1fr;
+    }
+    
+    .file-checkbox {
+        display: none;
     }
 }

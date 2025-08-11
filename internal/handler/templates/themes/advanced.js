@@ -1,8 +1,5 @@
-// GoFS Advanced Theme - Interactive JavaScript
 (function() {
     'use strict';
-
-    // State Management
     const state = {
         viewMode: localStorage.getItem('viewMode') || 'grid',
         theme: localStorage.getItem('theme') || 'light',
@@ -12,10 +9,11 @@
         searchQuery: '',
         uploadProgress: 0,
         uploadXHR: null,
-        csrfToken: null
+        csrfToken: null,
+        selectedFiles: new Set(),
+        isSelectionMode: false,
+        lastSelectedIndex: -1
     };
-
-    // DOM Elements
     const elements = {
         html: document.documentElement,
         body: document.body,
@@ -38,8 +36,6 @@
         previewClose: document.getElementById('previewClose'),
         newFolderBtn: document.getElementById('newFolderBtn')
     };
-
-    // Initialize
     function init() {
         applyTheme(state.theme);
         applyViewMode(state.viewMode);
@@ -47,11 +43,10 @@
         setupEventListeners();
         setupDragAndDrop();
         setupKeyboardShortcuts();
-        // Fetch initial CSRF token
+        initializeSelection();
         fetchCSRFToken();
     }
 
-    // CSRF Token Management
     function fetchCSRFToken() {
         fetch('/api/csrf')
             .then(response => response.json())
@@ -64,10 +59,9 @@
     }
 
     function getCSRFToken() {
-        // If we don't have a token, fetch one synchronously (fallback)
         if (!state.csrfToken) {
             const xhr = new XMLHttpRequest();
-            xhr.open('GET', '/api/csrf', false); // Synchronous request (not ideal but works as fallback)
+            xhr.open('GET', '/api/csrf', false);
             xhr.send();
             if (xhr.status === 200) {
                 const data = JSON.parse(xhr.responseText);
@@ -77,7 +71,6 @@
         return state.csrfToken;
     }
 
-    // Theme Management
     function applyTheme(theme) {
         state.theme = theme;
         elements.html.setAttribute('data-theme', theme);
@@ -90,7 +83,6 @@
         applyTheme(newTheme);
     }
 
-    // View Mode Management
     function applyViewMode(mode) {
         state.viewMode = mode;
         elements.fileContainer.className = `file-container ${mode}-view`;
@@ -135,7 +127,6 @@
         }
     }
 
-    // Layout Management
     function applyLayoutMode(mode) {
         state.layoutMode = mode;
         elements.body.className = elements.body.className
@@ -165,7 +156,6 @@
         }
     }
 
-    // Search Functionality
     function handleSearch() {
         const query = elements.searchInput.value.toLowerCase();
         state.searchQuery = query;
@@ -180,7 +170,6 @@
             if (matches) visibleCount++;
         });
         
-        // Update file count
         const fileCount = document.querySelector('.file-count');
         if (fileCount) {
             const total = fileItems.length;
@@ -192,44 +181,36 @@
         }
     }
 
-    // Upload Functionality
     function handleFileSelect(files) {
         if (files.length === 0) return;
         
-        // MVP: Single file upload
         const file = files[0];
         uploadFile(file);
     }
 
     function uploadFile(file) {
-        // Validation
-        const maxSize = 100 * 1024 * 1024; // 100MB
+        const maxSize = 100 * 1024 * 1024;
         if (file.size > maxSize) {
             showNotification('File too large. Maximum size is 100MB.', 'error');
             return;
         }
 
-        // Show progress UI
         elements.uploadProgress.style.display = 'block';
         elements.uploadFilename.textContent = file.name;
         elements.progressFill.style.width = '0%';
         elements.uploadPercent.textContent = '0%';
 
-        // Create FormData
         const formData = new FormData();
         formData.append('file', file);
         
-        // Add CSRF token to form data
         const csrfToken = getCSRFToken();
         if (csrfToken) {
             formData.append('csrf_token', csrfToken);
         }
 
-        // Create XHR for progress tracking
         const xhr = new XMLHttpRequest();
         state.uploadXHR = xhr;
 
-        // Track upload progress
         const startTime = Date.now();
         let lastLoaded = 0;
         
@@ -238,11 +219,9 @@
                 const percentComplete = Math.round((e.loaded / e.total) * 100);
                 state.uploadProgress = percentComplete;
                 
-                // Update UI
                 elements.progressFill.style.width = percentComplete + '%';
                 elements.uploadPercent.textContent = percentComplete + '%';
                 
-                // Calculate speed
                 const elapsed = (Date.now() - startTime) / 1000;
                 const bytesPerSecond = e.loaded / elapsed;
                 const speed = formatSpeed(bytesPerSecond);
@@ -270,15 +249,12 @@
             hideUploadProgress();
         });
 
-        // Send request
         xhr.open('POST', '/api/upload');
-        // Also set the CSRF token in header for additional security
         if (csrfToken) {
             xhr.setRequestHeader('X-CSRF-Token', csrfToken);
         }
         xhr.send(formData);
         
-        // After successful upload, fetch a new CSRF token for next operation
         xhr.addEventListener('loadend', () => {
             fetchCSRFToken();
         });
@@ -299,7 +275,6 @@
         }, 500);
     }
 
-    // Drag and Drop
     function setupDragAndDrop() {
         let dragCounter = 0;
 
@@ -331,7 +306,6 @@
         });
     }
 
-    // File Preview
     function previewFile(e) {
         const link = e.target.closest('.file-item');
         if (!link || link.classList.contains('file-item-parent')) return;
@@ -342,17 +316,15 @@
         const filename = link.dataset.name;
         const ext = filename.split('.').pop().toLowerCase();
         
-        // Check if preview is supported
         const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'];
         const textExts = ['txt', 'md', 'json', 'js', 'css', 'html', 'xml', 'yml', 'yaml'];
         
         if (!imageExts.includes(ext) && !textExts.includes(ext)) {
-            return; // Let default action handle it
+            return;
         }
         
         e.preventDefault();
         
-        // Show modal
         elements.previewModal.style.display = 'flex';
         elements.previewTitle.textContent = filename;
         elements.previewBody.innerHTML = 'Loading...';
@@ -362,7 +334,6 @@
         if (imageExts.includes(ext)) {
             elements.previewBody.innerHTML = `<img src="${url}" style="max-width: 100%; height: auto;">`;
         } else {
-            // Fetch text content
             fetch(url)
                 .then(response => response.text())
                 .then(text => {
@@ -375,12 +346,10 @@
         }
     }
 
-    // New Folder
     function createNewFolder() {
         const name = prompt('Enter folder name:');
         if (!name) return;
         
-        // Validate folder name
         if (!/^[a-zA-Z0-9_\-. ]+$/.test(name)) {
             showNotification('Invalid folder name. Use only letters, numbers, spaces, and -_.', 'error');
             return;
@@ -398,12 +367,10 @@
         .then(response => {
             if (response.ok) {
                 showNotification(`Folder "${name}" created successfully!`, 'success');
-                // Fetch new CSRF token for next operation
                 fetchCSRFToken();
                 setTimeout(() => location.reload(), 500);
             } else {
                 showNotification('Failed to create folder.', 'error');
-                // Fetch new token on failure as well
                 fetchCSRFToken();
             }
         })
@@ -413,58 +380,311 @@
         });
     }
 
-    // Keyboard Shortcuts
+    function initializeSelection() {
+        const fileItems = elements.fileContainer.querySelectorAll('.file-item:not(.file-item-parent)');
+        
+        fileItems.forEach((item, index) => {
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.className = 'file-checkbox';
+            checkbox.style.cssText = `
+                position: absolute;
+                left: 10px;
+                top: 50%;
+                transform: translateY(-50%);
+                z-index: 2;
+                cursor: pointer;
+                display: none;
+            `;
+            
+            item.dataset.index = index;
+            
+            item.style.position = 'relative';
+            item.insertBefore(checkbox, item.firstChild);
+            
+            checkbox.addEventListener('change', (e) => {
+                e.stopPropagation();
+                handleSelectionChange(item, checkbox.checked, index, e.shiftKey);
+            });
+            
+            item.addEventListener('click', (e) => {
+                if (state.isSelectionMode && !e.ctrlKey && !e.metaKey) {
+                    e.preventDefault();
+                    checkbox.checked = !checkbox.checked;
+                    handleSelectionChange(item, checkbox.checked, index, e.shiftKey);
+                }
+            });
+        });
+    }
+    
+    function handleSelectionChange(item, isSelected, index, isShiftKey) {
+        const path = item.getAttribute('href') || item.dataset.path;
+        
+        if (isShiftKey && state.lastSelectedIndex !== -1) {
+            const start = Math.min(state.lastSelectedIndex, index);
+            const end = Math.max(state.lastSelectedIndex, index);
+            const fileItems = elements.fileContainer.querySelectorAll('.file-item:not(.file-item-parent)');
+            
+            for (let i = start; i <= end; i++) {
+                const fileItem = fileItems[i];
+                const checkbox = fileItem.querySelector('.file-checkbox');
+                const itemPath = fileItem.getAttribute('href') || fileItem.dataset.path;
+                
+                if (checkbox && !checkbox.checked) {
+                    checkbox.checked = true;
+                    fileItem.classList.add('selected');
+                    state.selectedFiles.add(itemPath);
+                }
+            }
+        } else {
+            if (isSelected) {
+                item.classList.add('selected');
+                state.selectedFiles.add(path);
+                state.lastSelectedIndex = index;
+            } else {
+                item.classList.remove('selected');
+                state.selectedFiles.delete(path);
+            }
+        }
+        
+        updateSelectionUI();
+    }
+    
+    function toggleSelectionMode() {
+        state.isSelectionMode = !state.isSelectionMode;
+        const checkboxes = elements.fileContainer.querySelectorAll('.file-checkbox');
+        const multiSelectBtn = document.getElementById('multiSelectBtn');
+        
+        if (state.isSelectionMode) {
+            elements.fileContainer.classList.add('selection-mode');
+            checkboxes.forEach(cb => cb.style.display = 'block');
+            if (multiSelectBtn) multiSelectBtn.classList.add('active');
+            showSelectionToolbar();
+        } else {
+            elements.fileContainer.classList.remove('selection-mode');
+            checkboxes.forEach(cb => {
+                cb.style.display = 'none';
+                cb.checked = false;
+            });
+            if (multiSelectBtn) multiSelectBtn.classList.remove('active');
+            clearSelection();
+            hideSelectionToolbar();
+        }
+    }
+    
+    function clearSelection() {
+        state.selectedFiles.clear();
+        state.lastSelectedIndex = -1;
+        const selectedItems = elements.fileContainer.querySelectorAll('.file-item.selected');
+        selectedItems.forEach(item => {
+            item.classList.remove('selected');
+            const checkbox = item.querySelector('.file-checkbox');
+            if (checkbox) checkbox.checked = false;
+        });
+        updateSelectionUI();
+    }
+    
+    function selectAll() {
+        const fileItems = elements.fileContainer.querySelectorAll('.file-item:not(.file-item-parent)');
+        fileItems.forEach(item => {
+            const checkbox = item.querySelector('.file-checkbox');
+            const path = item.getAttribute('href') || item.dataset.path;
+            if (checkbox && !checkbox.checked) {
+                checkbox.checked = true;
+                item.classList.add('selected');
+                state.selectedFiles.add(path);
+            }
+        });
+        updateSelectionUI();
+    }
+    
+    function updateSelectionUI() {
+        const toolbar = document.getElementById('selectionToolbar');
+        if (toolbar) {
+            const count = state.selectedFiles.size;
+            const countEl = toolbar.querySelector('.selection-count');
+            if (countEl) {
+                countEl.textContent = count === 0 ? 'No files selected' : 
+                    count === 1 ? '1 file selected' : `${count} files selected`;
+            }
+            
+            const downloadBtn = toolbar.querySelector('.download-selected');
+            if (downloadBtn) {
+                downloadBtn.disabled = count === 0;
+            }
+        }
+    }
+    
+    function showSelectionToolbar() {
+        let toolbar = document.getElementById('selectionToolbar');
+        if (!toolbar) {
+            toolbar = document.createElement('div');
+            toolbar.id = 'selectionToolbar';
+            toolbar.className = 'selection-toolbar';
+            toolbar.style.cssText = `
+                position: fixed;
+                bottom: 20px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: var(--color-primary);
+                color: white;
+                padding: 12px 24px;
+                border-radius: 8px;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+                display: flex;
+                align-items: center;
+                gap: 16px;
+                z-index: 1000;
+            `;
+            
+            toolbar.innerHTML = `
+                <span class="selection-count">No files selected</span>
+                <button class="btn-small select-all" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 6px 12px; border-radius: 4px; cursor: pointer;">
+                    Select All
+                </button>
+                <button class="btn-small clear-selection" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 6px 12px; border-radius: 4px; cursor: pointer;">
+                    Clear
+                </button>
+                <button class="btn-small download-selected" style="background: white; border: none; color: var(--color-primary); padding: 6px 16px; border-radius: 4px; cursor: pointer; font-weight: 600;" disabled>
+                    Download as ZIP
+                </button>
+                <button class="btn-small close-selection" style="background: transparent; border: none; color: white; padding: 6px; cursor: pointer; font-size: 20px;">
+                    ×
+                </button>
+            `;
+            
+            document.body.appendChild(toolbar);
+            
+            toolbar.querySelector('.select-all').addEventListener('click', selectAll);
+            toolbar.querySelector('.clear-selection').addEventListener('click', clearSelection);
+            toolbar.querySelector('.download-selected').addEventListener('click', downloadSelectedAsZip);
+            toolbar.querySelector('.close-selection').addEventListener('click', toggleSelectionMode);
+        }
+        
+        toolbar.style.display = 'flex';
+    }
+    
+    function hideSelectionToolbar() {
+        const toolbar = document.getElementById('selectionToolbar');
+        if (toolbar) {
+            toolbar.style.display = 'none';
+        }
+    }
+    
+    function downloadSelectedAsZip() {
+        if (state.selectedFiles.size === 0) return;
+        
+        const paths = Array.from(state.selectedFiles);
+        
+        if (paths.length === 1) {
+            const link = document.querySelector(`.file-item[href="${paths[0]}"]`);
+            if (link && link.dataset.type !== 'folder') {
+                window.location.href = paths[0];
+                return;
+            }
+        }
+        
+        const csrfToken = getCSRFToken();
+        const zipName = paths.length === 1 ? 
+            paths[0].split('/').pop() + '.zip' : 
+            `download_${Date.now()}.zip`;
+        
+        showNotification('Preparing ZIP download...', 'info');
+        
+        fetch('/api/zip', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken || ''
+            },
+            body: JSON.stringify({
+                paths: paths,
+                name: zipName
+            })
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Failed to create ZIP');
+            }
+            return response.blob();
+        })
+        .then(blob => {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = zipName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showNotification('ZIP download started!', 'success');
+            fetchCSRFToken();
+        })
+        .catch(err => {
+            showNotification('Failed to create ZIP download', 'error');
+            console.error('ZIP download error:', err);
+            fetchCSRFToken();
+        });
+    }
+    
     function setupKeyboardShortcuts() {
         document.addEventListener('keydown', (e) => {
-            // Ctrl/Cmd + F: Focus search
             if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
                 e.preventDefault();
                 elements.searchInput.focus();
             }
             
-            // Ctrl/Cmd + U: Upload
             if ((e.ctrlKey || e.metaKey) && e.key === 'u') {
                 e.preventDefault();
                 elements.uploadInput.click();
             }
             
-            // Ctrl/Cmd + N: New folder
             if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
                 e.preventDefault();
                 createNewFolder();
             }
             
-            // Escape: Close modals
+            if ((e.ctrlKey || e.metaKey) && e.key === 'a' && state.isSelectionMode) {
+                e.preventDefault();
+                selectAll();
+            }
+            
+            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                e.preventDefault();
+                toggleSelectionMode();
+            }
+            
+            if ((e.ctrlKey || e.metaKey) && e.key === 'd' && state.isSelectionMode) {
+                e.preventDefault();
+                downloadSelectedAsZip();
+            }
+            
             if (e.key === 'Escape') {
                 if (elements.previewModal.style.display !== 'none') {
                     elements.previewModal.style.display = 'none';
+                } else if (state.isSelectionMode) {
+                    toggleSelectionMode();
                 }
             }
         });
     }
 
-    // Event Listeners
     function setupEventListeners() {
-        // Theme toggle
         elements.themeToggle?.addEventListener('click', toggleTheme);
         
-        // View mode toggle
         elements.viewToggle?.addEventListener('click', toggleViewMode);
         
-        // Layout toggle
         elements.layoutToggle?.addEventListener('click', toggleLayoutMode);
         
-        // Search
         elements.searchInput?.addEventListener('input', debounce(handleSearch, 300));
         
-        // Upload
         elements.uploadInput?.addEventListener('change', (e) => {
             handleFileSelect(e.target.files);
         });
         
         elements.uploadCancel?.addEventListener('click', cancelUpload);
         
-        // Preview
         elements.fileContainer?.addEventListener('click', (e) => {
             if (e.altKey || e.metaKey) {
                 previewFile(e);
@@ -475,11 +695,12 @@
             elements.previewModal.style.display = 'none';
         });
         
-        // New folder
         elements.newFolderBtn?.addEventListener('click', createNewFolder);
+        
+        const multiSelectBtn = document.getElementById('multiSelectBtn');
+        multiSelectBtn?.addEventListener('click', toggleSelectionMode);
     }
 
-    // Utility Functions
     function debounce(func, wait) {
         let timeout;
         return function executedFunction(...args) {
@@ -509,7 +730,6 @@
     }
 
     function showNotification(message, type = 'info') {
-        // Simple notification (can be enhanced with a proper notification system)
         const colors = {
             success: '#059669',
             error: '#dc2626',
@@ -538,7 +758,6 @@
         }, 3000);
     }
 
-    // Initialize on DOM ready
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
     } else {
