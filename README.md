@@ -9,10 +9,10 @@ A lightweight, fast HTTP file server written in Go.
 
 - Fast and safe: secure path handling, optional Basic Auth (bcrypt)
 - Simple: one binary, zero config to start
-- Modern UI: advanced theme with upload and folder creation
-- WebDAV: optional /dav/ endpoint
-- Production‑ready: structured logs, health probes
-- As sidecar: drop it next to any Pod to expose in‑container paths, Basic Auth, and optional read‑only WebDAV
+- Modern UI: advanced theme with upload, folder creation, and ZIP downloads
+- WebDAV: optional /dav/ endpoint (read-only)
+- Production‑ready: structured logs, health probes, graceful shutdown
+- Multiple directories: mount multiple paths with optional read-only flags
 
 ## Screenshot
 
@@ -81,6 +81,7 @@ Flags have GOFS\_\* env twins (flags win):
 
 - GOFS_PORT, GOFS_HOST, GOFS_DIR (semicolon‑separated for multiple)
 - GOFS_THEME, GOFS_SHOW_HIDDEN, GOFS_AUTH, GOFS_ENABLE_WEBDAV
+- GOFS_LOG_LEVEL (debug/info/warn/error), GOFS_ENV (production for JSON logs)
 
 ## Requirements
 
