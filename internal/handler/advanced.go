@@ -13,7 +13,6 @@ import (
 	"path"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -23,6 +22,7 @@ import (
 	"github.com/samzong/gofs/internal/constants"
 	"github.com/samzong/gofs/internal/handler/templates"
 	"github.com/samzong/gofs/pkg/fileutil"
+	"github.com/samzong/gofs/pkg/httprange"
 )
 
 type UploadResponse struct {
@@ -499,6 +499,7 @@ func (h *AdvancedFile) serveFile(w http.ResponseWriter, r *http.Request, path st
 		return
 	}
 
+	// Set security headers
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("X-Frame-Options", "DENY")
 	w.Header().Set("X-XSS-Protection", "1; mode=block")
@@ -506,15 +507,65 @@ func (h *AdvancedFile) serveFile(w http.ResponseWriter, r *http.Request, path st
 		"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "+
 			"img-src 'self' data:; font-src 'self'")
 
-	filename := filepath.Base(path)
-	w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=%q", filename))
-	w.Header().Set("Content-Type", fileutil.DetectMimeType(path))
-	w.Header().Set("Content-Length", strconv.FormatInt(info.Size(), 10))
+	// Parse Range header for resumable downloads
+	rangeHeader := r.Header.Get("Range")
+	rng, err := httprange.ParseRange(rangeHeader, info.Size())
+	if err != nil {
+		if err == httprange.ErrUnsatisfiableRange {
+			// Send 416 Range Not Satisfiable
+			httprange.WriteRangeNotSatisfiable(w, info.Size())
+			return
+		}
+		// For other errors, serve full content
+		rng = nil
+	}
 
-	if _, err := io.Copy(w, file); err != nil {
-		h.logger.Warn("Failed to serve file content",
+	// Determine MIME type
+	mimeType := fileutil.DetectMimeType(path)
+	filename := filepath.Base(path)
+
+	// Check if the file is seekable
+	seeker, seekable := file.(io.ReadSeeker)
+	if !seekable && rng != nil {
+		// File doesn't support seeking, serve full content
+		h.logger.Debug("File doesn't support seeking, serving full content",
 			slog.String("path", path),
-			slog.String("error", err.Error()))
+			slog.String("component", "advanced_file_handler"),
+		)
+		rng = nil
+	}
+
+	// Serve content based on range request
+	if rng != nil {
+		// Serve partial content
+		h.logger.Debug("Serving partial content",
+			slog.String("path", path),
+			slog.Int64("start", rng.Start),
+			slog.Int64("end", rng.End),
+			slog.Int64("length", rng.Length),
+			slog.String("component", "advanced_file_handler"),
+		)
+
+		w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=%q", filename))
+
+		if err := httprange.ServeContent(w, seeker, rng, info.Size(), mimeType); err != nil {
+			h.logger.Warn("Error serving partial content",
+				slog.String("path", path),
+				slog.String("error", err.Error()),
+				slog.String("component", "advanced_file_handler"),
+			)
+		}
+	} else {
+		// Serve full content
+		w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=%q", filename))
+
+		if err := httprange.ServeFullContent(w, file, info.Size(), mimeType); err != nil {
+			h.logger.Warn("Error serving full content",
+				slog.String("path", path),
+				slog.String("error", err.Error()),
+				slog.String("component", "advanced_file_handler"),
+			)
+		}
 	}
 }
 

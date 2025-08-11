@@ -18,6 +18,7 @@ import (
 	"github.com/samzong/gofs/internal/config"
 	"github.com/samzong/gofs/internal/handler/templates"
 	"github.com/samzong/gofs/pkg/fileutil"
+	"github.com/samzong/gofs/pkg/httprange"
 )
 
 // File implements HTTP request handling for file system operations.
@@ -108,7 +109,8 @@ func (h *File) handleDirectory(w http.ResponseWriter, r *http.Request, path stri
 }
 
 // handleFile processes file requests and serves file content with appropriate headers.
-func (h *File) handleFile(w http.ResponseWriter, _ *http.Request, path string) {
+// It supports HTTP Range requests for resumable downloads according to RFC 7233.
+func (h *File) handleFile(w http.ResponseWriter, r *http.Request, path string) {
 	file, err := h.fs.Open(path)
 	if err != nil {
 		http.Error(w, "Cannot open file", http.StatusInternalServerError)
@@ -129,12 +131,69 @@ func (h *File) handleFile(w http.ResponseWriter, _ *http.Request, path string) {
 		return
 	}
 
-	// Set all necessary headers
+	// Set security headers
 	h.setSecurityHeaders(w)
-	h.setFileHeaders(w, path, info)
 
-	// Serve file content with appropriate strategy
-	h.serveFileContent(w, file, info.Size())
+	// Parse Range header if present
+	rangeHeader := r.Header.Get("Range")
+	rng, err := httprange.ParseRange(rangeHeader, info.Size())
+	if err != nil {
+		if err == httprange.ErrUnsatisfiableRange {
+			// Send 416 Range Not Satisfiable
+			httprange.WriteRangeNotSatisfiable(w, info.Size())
+			return
+		}
+		// For other errors (invalid format, multiple ranges), ignore and serve full content
+		rng = nil
+	}
+
+	// Determine MIME type
+	mimeType := fileutil.DetectMimeType(path)
+
+	// Check if the file is seekable
+	seeker, seekable := file.(io.ReadSeeker)
+	if !seekable && rng != nil {
+		// File doesn't support seeking, serve full content
+		h.logger.Debug("File doesn't support seeking, serving full content",
+			slog.String("path", path),
+			slog.String("component", "file_handler"),
+		)
+		rng = nil
+	}
+
+	// Serve content based on range request
+	if rng != nil {
+		// Serve partial content
+		h.logger.Debug("Serving partial content",
+			slog.String("path", path),
+			slog.Int64("start", rng.Start),
+			slog.Int64("end", rng.End),
+			slog.Int64("length", rng.Length),
+			slog.String("component", "file_handler"),
+		)
+
+		// Set filename header for partial content
+		filename := filepath.Base(path)
+		w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=%q", filename))
+
+		if err := httprange.ServeContent(w, seeker, rng, info.Size(), mimeType); err != nil {
+			h.logger.Warn("Error serving partial content",
+				slog.String("path", path),
+				slog.String("error", err.Error()),
+				slog.String("component", "file_handler"),
+			)
+		}
+	} else {
+		// Serve full content
+		h.setFileHeaders(w, path, info)
+		if err := httprange.ServeFullContent(w, file, info.Size(), mimeType); err != nil {
+			h.logger.Warn("Error serving full content",
+				slog.String("path", path),
+				slog.String("error", err.Error()),
+				slog.String("component", "file_handler"),
+			)
+		}
+	}
 }
 
 // closeFile handles safe file closing with error logging.
@@ -171,21 +230,6 @@ func (h *File) setFileHeaders(w http.ResponseWriter, path string, info internal.
 
 	// Set content length
 	w.Header().Set("Content-Length", strconv.FormatInt(info.Size(), 10))
-}
-
-// serveFileContent serves the file content using the appropriate strategy based on size.
-func (h *File) serveFileContent(w http.ResponseWriter, file io.ReadCloser, size int64) {
-	const largeFileThreshold = 1 << 20 // 1MB
-	const bufferSize = 64 << 10        // 64KB
-
-	if size > largeFileThreshold {
-		// Use buffered copy for large files
-		buf := make([]byte, bufferSize)
-		_, _ = io.CopyBuffer(w, file, buf)
-	} else {
-		// Use standard copy for small files
-		_, _ = io.Copy(w, file)
-	}
 }
 
 // renderJSON renders the file listing as JSON for API consumers.
