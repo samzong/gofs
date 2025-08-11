@@ -17,6 +17,8 @@ CLEAN_VERSION=""
 BRANCH_NAME=""
 DRY_RUN=0
 VERBOSE=0
+# Checksum command (array) determined at runtime
+declare -a CHECKSUM_CMD=()
 
 cleanup() {
     [[ $VERBOSE == 1 ]] && echo "Cleaning up..."
@@ -85,11 +87,30 @@ validate_prereqs() {
         # Prefer GitHub-provided token for current repo operations; fallback to PAT
         export GH_TOKEN="${GH_TOKEN:-${GITHUB_TOKEN:-$GH_PAT}}"
     fi
-    
-    for cmd in git curl shasum gh; do
+
+    # Required core tools
+    for cmd in git curl gh; do
         command -v "$cmd" >/dev/null || { echo "Error: $cmd not found" >&2; exit 1; }
         [[ $VERBOSE == 1 ]] && echo "Found: $cmd"
     done
+
+    if [[ $VERBOSE == 1 ]]; then
+        git --version || true
+        curl --version | head -n 1 || true
+        gh --version | head -n 1 || true
+    fi
+
+    # Determine checksum tool: prefer shasum, fallback to sha256sum
+    if command -v shasum >/dev/null; then
+        CHECKSUM_CMD=(shasum -a 256)
+        [[ $VERBOSE == 1 ]] && echo "Using checksum tool: shasum -a 256"
+    elif command -v sha256sum >/dev/null; then
+        CHECKSUM_CMD=(sha256sum)
+        [[ $VERBOSE == 1 ]] && echo "Using checksum tool: sha256sum"
+    else
+        echo "Error: neither 'shasum' nor 'sha256sum' found in PATH" >&2
+        exit 1
+    fi
 }
 
 validate_version() {
@@ -205,10 +226,10 @@ calculate_checksums() {
     if ! gh release download "$VERSION" --repo "${PROJECT_OWNER}/${PROJECT_NAME}" --pattern "$linux_arm64_name" --dir "$download_dir" --clobber >/dev/null; then
         echo "Error: Failed to download asset: $linux_arm64_name" >&2; exit 1; fi
 
-    DARWIN_AMD64_SHA=$(shasum -a 256 "$download_dir/$darwin_amd64_name" | cut -d' ' -f1)
-    DARWIN_ARM64_SHA=$(shasum -a 256 "$download_dir/$darwin_arm64_name" | cut -d' ' -f1)
-    LINUX_AMD64_SHA=$(shasum -a 256 "$download_dir/$linux_amd64_name" | cut -d' ' -f1)
-    LINUX_ARM64_SHA=$(shasum -a 256 "$download_dir/$linux_arm64_name" | cut -d' ' -f1)
+    DARWIN_AMD64_SHA=$("${CHECKSUM_CMD[@]}" "$download_dir/$darwin_amd64_name" | awk '{print $1}')
+    DARWIN_ARM64_SHA=$("${CHECKSUM_CMD[@]}" "$download_dir/$darwin_arm64_name" | awk '{print $1}')
+    LINUX_AMD64_SHA=$("${CHECKSUM_CMD[@]}" "$download_dir/$linux_amd64_name" | awk '{print $1}')
+    LINUX_ARM64_SHA=$("${CHECKSUM_CMD[@]}" "$download_dir/$linux_arm64_name" | awk '{print $1}')
 
     [[ $VERBOSE == 1 ]] && {
         echo "darwin/amd64 sha: $DARWIN_AMD64_SHA"
