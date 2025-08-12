@@ -7,7 +7,6 @@ project_name: gofs
 
 before:
   hooks:
-    # You may remove this if you don't use go modules.
     - go mod tidy
 
 builds:
@@ -59,7 +58,6 @@ changelog:
       - Merge pull request
       - Merge branch
 
-# Docker images
 dockers:
   - id: gofs-amd64
     goos: linux
@@ -67,15 +65,17 @@ dockers:
     dockerfile: Dockerfile.goreleaser
     use: buildx
     image_templates:
-      - "ghcr.io/samzong/gofs:{{ .Tag }}-amd64"
-      - "ghcr.io/samzong/gofs:latest-amd64"
+      - "ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}:{{ .Tag }}-amd64"
+      - "ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}:latest-amd64"
+      - "{{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:{{ .Tag }}-amd64"
+      - "{{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:latest-amd64"
     build_flag_templates:
       - "--pull"
       - "--label=org.opencontainers.image.created={{.Date}}"
       - "--label=org.opencontainers.image.title={{.ProjectName}}" 
       - "--label=org.opencontainers.image.revision={{.FullCommit}}"
       - "--label=org.opencontainers.image.version={{.Version}}"
-      - "--label=org.opencontainers.image.source=https://github.com/samzong/gofs"
+      - "--label=org.opencontainers.image.source=https://github.com/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}"
       - "--label=org.opencontainers.image.description=Simple file server written in Go"
       - "--platform=linux/amd64"
 
@@ -85,34 +85,45 @@ dockers:
     dockerfile: Dockerfile.goreleaser
     use: buildx
     image_templates:
-      - "ghcr.io/samzong/gofs:{{ .Tag }}-arm64"
-      - "ghcr.io/samzong/gofs:latest-arm64"
+      - "ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}:{{ .Tag }}-arm64"
+      - "ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}:latest-arm64"
+      - "{{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:{{ .Tag }}-arm64"
+      - "{{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:latest-arm64"
     build_flag_templates:
       - "--pull"
       - "--label=org.opencontainers.image.created={{.Date}}"
       - "--label=org.opencontainers.image.title={{.ProjectName}}"
       - "--label=org.opencontainers.image.revision={{.FullCommit}}"
       - "--label=org.opencontainers.image.version={{.Version}}"
-      - "--label=org.opencontainers.image.source=https://github.com/samzong/gofs"
+      - "--label=org.opencontainers.image.source=https://github.com/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}"
       - "--label=org.opencontainers.image.description=Simple file server written in Go"
       - "--platform=linux/arm64"
 
-# Docker manifests for multi-arch images
 docker_manifests:
-  - name_template: "ghcr.io/samzong/gofs:{{ .Tag }}"
+  - name_template: "ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}:{{ .Tag }}"
     image_templates:
-      - "ghcr.io/samzong/gofs:{{ .Tag }}-amd64"
-      - "ghcr.io/samzong/gofs:{{ .Tag }}-arm64"
+      - "ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}:{{ .Tag }}-amd64"
+      - "ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}:{{ .Tag }}-arm64"
   
-  - name_template: "ghcr.io/samzong/gofs:latest"
+  - name_template: "ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}:latest"
     image_templates:
-      - "ghcr.io/samzong/gofs:latest-amd64"
-      - "ghcr.io/samzong/gofs:latest-arm64"
+      - "ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}:latest-amd64"
+      - "ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}:latest-arm64"
+
+  - name_template: "{{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:{{ .Tag }}"
+    image_templates:
+      - "{{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:{{ .Tag }}-amd64"
+      - "{{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:{{ .Tag }}-arm64"
+  
+  - name_template: "{{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:latest"
+    image_templates:
+      - "{{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:latest-amd64"
+      - "{{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:latest-arm64"
 
 release:
   github:
-    owner: samzong
-    name: gofs
+    owner: "{{ .Env.GITHUB_REPOSITORY_OWNER }}"
+    name: "{{ .ProjectName }}"
   draft: false
   prerelease: auto
   mode: replace
@@ -122,65 +133,52 @@ release:
     
     ### Docker Images
     
-    Multi-architecture Docker images are available on GitHub Container Registry:
+    Multi-architecture Docker images are available on GitHub Container Registry and Docker Hub:
     
     ```bash
-    # Pull latest version
-    docker pull ghcr.io/samzong/gofs:{{ .Tag }}
-    docker pull ghcr.io/samzong/gofs:latest
+    # Pull from GitHub Container Registry
+    docker pull ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}:{{ .Tag }}
+    docker pull ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}:latest
+    
+    # Pull from Docker Hub
+    docker pull {{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:{{ .Tag }}
+    docker pull {{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:latest
     
     # Run the container
-    docker run -p 8000:8000 -v $(pwd):/data:ro ghcr.io/samzong/gofs:{{ .Tag }}
+    docker run -p 8000:8000 -v $(pwd):/data:ro {{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:{{ .Tag }}
     ```
     
     Supported architectures: `linux/amd64`, `linux/arm64`
   footer: |
-    **Full Changelog**: https://github.com/samzong/gofs/compare/{{ .PreviousTag }}...{{ .Tag }}
+    **Full Changelog**: https://github.com/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}/compare/{{ .PreviousTag }}...{{ .Tag }}
 
-# Homebrew tap configuration
 brews:
   - name: gofs
     
-    # Target repository for the Homebrew formula
     repository:
-      owner: samzong
+      owner: "{{ .Env.GITHUB_REPOSITORY_OWNER }}"
       name: homebrew-tap
-      # Create a new branch for each release
       branch: "update-gofs-{{ .Tag }}"
-      # Create a pull request instead of direct push
       pull_request:
         enabled: true
         base:
           branch: main
-      
-      # Token with write access to the tap repository
-      # Set HOMEBREW_TAP_TOKEN in GitHub secrets
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     
-    # Formula metadata
-    homepage: "https://github.com/samzong/gofs"
+    homepage: "https://github.com/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}"
     description: "A lightweight, fast HTTP file server written in Go"
     license: "MIT"
-    
-    # Directory in the tap repository where the formula will be created
     directory: Formula
+    url_template: "https://github.com/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
     
-    # Use the archive name template that matches your existing formula structure
-    url_template: "https://github.com/samzong/gofs/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
-    
-    # Commit author for the formula update
     commit_author:
       name: github-actions[bot]
       email: 41898282+github-actions[bot]@users.noreply.github.com
     
-    # Test block for the formula
     test: |
       system "#{bin}/gofs", "--version"
     
-    # Installation instructions
     install: |
       bin.install "gofs"
     
-    # Skip upload if formula already exists with same version
-    # Set to false to always create PR, even for pre-releases
     skip_upload: false
