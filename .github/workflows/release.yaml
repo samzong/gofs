@@ -51,6 +51,15 @@ jobs:
       with:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
+    
+    - name: Update Docker Hub README
+      uses: peter-evans/dockerhub-description@v4
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+        repository: ${{ secrets.DOCKERHUB_USERNAME }}/gofs
+        readme-filepath: ./README.docker.md
+        short-description: "A lightweight, fast HTTP file server written in Go"
       
     - name: Run GoReleaser
       id: release
