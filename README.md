@@ -4,6 +4,7 @@ A lightweight, fast HTTP file server written in Go.
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/samzong/gofs)](https://goreportcard.com/report/github.com/samzong/gofs)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Docker Pulls](https://img.shields.io/docker/pulls/samzong/gofs)](https://hub.docker.com/r/samzong/gofs)
 
 ## Why
 
