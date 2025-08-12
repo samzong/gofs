@@ -136,3 +136,51 @@ release:
     Supported architectures: `linux/amd64`, `linux/arm64`
   footer: |
     **Full Changelog**: https://github.com/samzong/gofs/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+# Homebrew tap configuration
+brews:
+  - name: gofs
+    
+    # Target repository for the Homebrew formula
+    repository:
+      owner: samzong
+      name: homebrew-tap
+      # Create a new branch for each release
+      branch: "update-gofs-{{ .Tag }}"
+      # Create a pull request instead of direct push
+      pull_request:
+        enabled: true
+        base:
+          branch: main
+      
+      # Token with write access to the tap repository
+      # Set HOMEBREW_TAP_TOKEN in GitHub secrets
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    
+    # Formula metadata
+    homepage: "https://github.com/samzong/gofs"
+    description: "A lightweight, fast HTTP file server written in Go"
+    license: "MIT"
+    
+    # Directory in the tap repository where the formula will be created
+    directory: Formula
+    
+    # Use the archive name template that matches your existing formula structure
+    url_template: "https://github.com/samzong/gofs/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+    
+    # Commit author for the formula update
+    commit_author:
+      name: github-actions[bot]
+      email: 41898282+github-actions[bot]@users.noreply.github.com
+    
+    # Test block for the formula
+    test: |
+      system "#{bin}/gofs", "--version"
+    
+    # Installation instructions
+    install: |
+      bin.install "gofs"
+    
+    # Skip upload if formula already exists with same version
+    # Set to false to always create PR, even for pre-releases
+    skip_upload: false
