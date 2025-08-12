@@ -24,9 +24,7 @@ import (
 
 var (
 	version   = "dev"
-	gitCommit = "unknown"
 	buildTime = "unknown"
-	goVersion = "unknown"
 )
 
 func main() {
@@ -142,10 +140,11 @@ func showHelp() {
 }
 
 func showVersion() {
-	fmt.Printf("gofs %s\n", version)
-	fmt.Printf("Git commit: %s\n", gitCommit)
-	fmt.Printf("Build time: %s\n", buildTime)
-	fmt.Printf("Go version: %s\n", goVersion)
+	if buildTime != "" && buildTime != "unknown" {
+		fmt.Printf("gofs version %s (built at %s)\n", version, buildTime)
+		return
+	}
+	fmt.Printf("gofs version %s\n", version)
 }
 
 type stringSlice []string
