@@ -2,9 +2,13 @@
 
 A lightweight, fast HTTP file server written in Go.
 
+[![Stars](https://img.shields.io/github/stars/samzong/gofs.svg)](https://github.com/samzong/gofs/stargazers)
 [![Go Report Card](https://goreportcard.com/badge/github.com/samzong/gofs)](https://goreportcard.com/report/github.com/samzong/gofs)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Version](https://img.shields.io/github/release/samzong/gofs.svg)](https://github.com/samzong/gofs/releases/latest)
 [![Docker Pulls](https://img.shields.io/docker/pulls/samzong/gofs)](https://hub.docker.com/r/samzong/gofs)
+[![Downloads](https://img.shields.io/github/downloads/samzong/gofs/total.svg)](https://github.com/samzong/gofs/releases)
+[![Lines of Code](https://tokei.rs/b1/github/samzong/gofs)](https://github.com/samzong/gofs)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 ## Why
 
@@ -15,19 +19,32 @@ A lightweight, fast HTTP file server written in Go.
 - Production‑ready: structured logs, health probes, graceful shutdown
 - Multiple directories: mount multiple paths with optional read-only flags
 
-## Screenshot
+## NEXT? (Wishing Pool)
 
-![Screenshot](./screenshot.png)
+> These will increase little by little until v1 in my goal.
+> Any feedback is welcome.
+
+- [ ] HTTP/2 support, TLS/HTTPS
+- [ ] Full text search, file preview
+- [ ] S3 storage support, OAuth integration
+- [ ] Prometheus metrics
+- [ ] Plug-in system
+- [ ] SDK
+- [ ] Kubernetes Operator
+- [ ] Multi-tenancy
+- [ ] Audit logging
+- [ ] WebSocket real-time notifications
 
 ## Install
 
 Homebrew
+
 ```bash
-brew tap samzong/tap
-brew install gofs
+brew install samzong/tap/gofs
 ```
 
 CLI
+
 ```bash
 go install github.com/samzong/gofs/cmd/gofs@latest
 ```
@@ -51,7 +68,7 @@ gofs --theme advanced
 gofs --enable-webdav
 ```
 
-## Mounting directories
+## Mounts
 
 You can expose one or more directories. Format: [path:]dir[:ro][:name]
 
@@ -76,7 +93,7 @@ curl -H "Accept: application/json" http://localhost:8000/
 - HTTP: /healthz and /readyz (200 OK)
 - CLI: gofs --health-check
 
-## Configuration
+## Environments
 
 Flags have GOFS\_\* env twins (flags win):
 
@@ -84,13 +101,9 @@ Flags have GOFS\_\* env twins (flags win):
 - GOFS_THEME, GOFS_SHOW_HIDDEN, GOFS_AUTH, GOFS_ENABLE_WEBDAV
 - GOFS_LOG_LEVEL (debug/info/warn/error), GOFS_ENV (production for JSON logs)
 
-## Requirements
-
-Go 1.24+
-
 ## Examples
 
-See examples/ for Docker and Kubernetes manifests.
+See examples for Docker and Kubernetes manifests.
 
 ## License
 
