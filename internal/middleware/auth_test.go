@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"encoding/base64"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -719,6 +720,154 @@ func TestNewBasicAuth_ErrorCases(t *testing.T) {
 				t.Errorf("expected default realm 'gofs', got %q", auth.realm)
 			}
 		})
+	}
+}
+
+// Test health check endpoint bypass
+func TestBasicAuthMiddleware_HealthCheckBypass(t *testing.T) {
+	// Setup
+	auth, err := NewBasicAuth("test-realm", "admin", "secret")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Handler-Called", "true")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("healthy"))
+	})
+	handler := auth.Middleware(nextHandler)
+
+	// Test health check endpoints without authentication
+	testCases := []struct {
+		name string
+		path string
+	}{
+		{"healthz", "/healthz"},
+		{"readyz", "/readyz"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
+			// Intentionally not setting Authorization header
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+
+			// Should bypass auth and reach the handler
+			if rr.Code != http.StatusOK {
+				t.Errorf("expected status %d, got %d", http.StatusOK, rr.Code)
+			}
+
+			if rr.Header().Get("X-Handler-Called") != "true" {
+				t.Error("expected next handler to be called for health check")
+			}
+
+			if body := rr.Body.String(); body != "healthy" {
+				t.Errorf("expected body 'healthy', got %q", body)
+			}
+
+			// Should not have WWW-Authenticate header
+			if wwwAuth := rr.Header().Get("WWW-Authenticate"); wwwAuth != "" {
+				t.Errorf("health check should not include WWW-Authenticate header, got %q", wwwAuth)
+			}
+		})
+	}
+}
+
+// Test caching functionality
+func TestBasicAuthMiddleware_Caching(t *testing.T) {
+	// Setup
+	auth, err := NewBasicAuth("test-realm", "admin", "secret")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	callCount := 0
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		w.WriteHeader(http.StatusOK)
+	})
+	handler := auth.Middleware(nextHandler)
+
+	credentials := base64.StdEncoding.EncodeToString([]byte("admin:secret"))
+
+	// First request - should perform full auth
+	req1 := httptest.NewRequest(http.MethodGet, "/", nil)
+	req1.Header.Set("Authorization", "Basic "+credentials)
+	rr1 := httptest.NewRecorder()
+	handler.ServeHTTP(rr1, req1)
+
+	if rr1.Code != http.StatusOK {
+		t.Errorf("first request: expected status %d, got %d", http.StatusOK, rr1.Code)
+	}
+
+	if callCount != 1 {
+		t.Errorf("expected handler to be called once, got %d", callCount)
+	}
+
+	// Second request with same credentials - should use cache
+	req2 := httptest.NewRequest(http.MethodGet, "/other", nil)
+	req2.Header.Set("Authorization", "Basic "+credentials)
+	rr2 := httptest.NewRecorder()
+	handler.ServeHTTP(rr2, req2)
+
+	if rr2.Code != http.StatusOK {
+		t.Errorf("second request: expected status %d, got %d", http.StatusOK, rr2.Code)
+	}
+
+	if callCount != 2 {
+		t.Errorf("expected handler to be called twice, got %d", callCount)
+	}
+
+	// Verify cache contains the credentials
+	auth.cacheMu.RLock()
+	_, found := auth.cache[credentials]
+	auth.cacheMu.RUnlock()
+
+	if !found {
+		t.Error("expected credentials to be cached")
+	}
+}
+
+// Test concurrent access safety
+func TestBasicAuthMiddleware_ConcurrentAccess(t *testing.T) {
+	auth, err := NewBasicAuth("test-realm", "admin", "secret")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	handler := auth.Middleware(nextHandler)
+
+	credentials := base64.StdEncoding.EncodeToString([]byte("admin:secret"))
+
+	// Run multiple goroutines with same credentials
+	const numGoroutines = 10
+	const requestsPerGoroutine = 5
+
+	results := make(chan int, numGoroutines*requestsPerGoroutine)
+
+	for i := range numGoroutines {
+		go func(goroutineID int) {
+			for j := range requestsPerGoroutine {
+				req := httptest.NewRequest(http.MethodGet,
+					fmt.Sprintf("/test-%d-%d", goroutineID, j), nil)
+				req.Header.Set("Authorization", "Basic "+credentials)
+				rr := httptest.NewRecorder()
+				handler.ServeHTTP(rr, req)
+				results <- rr.Code
+			}
+		}(i)
+	}
+
+	// Collect all results
+	for i := range numGoroutines * requestsPerGoroutine {
+		status := <-results
+		if status != http.StatusOK {
+			t.Errorf("request %d: expected status %d, got %d", i+1, http.StatusOK, status)
+		}
 	}
 }
 
