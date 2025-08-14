@@ -40,9 +40,5 @@ func GetThemeCSS(theme string) string {
 	}
 }
 
-func IsAdvancedTheme(theme string) bool {
-	return theme == "advanced"
-}
-
 var DirectoryTemplate = template.Must(template.New("directory").Parse(DirectoryHTML))
 var AdvancedTemplate = template.Must(template.New("advanced").Parse(AdvancedHTML))

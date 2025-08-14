@@ -2,8 +2,6 @@
 package themes
 
 import (
-	"strings"
-
 	_ "embed"
 )
 
@@ -17,15 +15,6 @@ var AdvancedCSS string
 
 //go:embed advanced.js
 var AdvancedJS string
-
-// GetAdvancedTheme returns the complete advanced theme with CSS and JS embedded
-func GetAdvancedTheme() string {
-	// Replace CSS placeholder
-	html := strings.Replace(AdvancedHTML, "{{.CSS}}", AdvancedCSS, 1)
-	// Replace JS placeholder
-	html = strings.Replace(html, "{{.JS}}", AdvancedJS, 1)
-	return html
-}
 
 // ThemeData represents the data structure for rendering the advanced theme
 type ThemeData struct {
