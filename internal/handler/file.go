@@ -16,6 +16,7 @@ import (
 	"github.com/samzong/gofs/internal"
 	"github.com/samzong/gofs/internal/config"
 	"github.com/samzong/gofs/internal/handler/templates"
+	"github.com/samzong/gofs/internal/middleware"
 	"github.com/samzong/gofs/pkg/fileutil"
 	"github.com/samzong/gofs/pkg/httprange"
 )
@@ -40,7 +41,11 @@ func (h *File) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.handleGet(w, r)
+	// Apply security headers
+	securityConfig := middleware.SecurityConfig{
+		EnableSecurity: h.config.EnableSecurity,
+	}
+	middleware.SecurityHeaders(securityConfig)(http.HandlerFunc(h.handleGet)).ServeHTTP(w, r)
 }
 
 func (h *File) handleGet(w http.ResponseWriter, r *http.Request) {
@@ -49,7 +54,7 @@ func (h *File) handleGet(w http.ResponseWriter, r *http.Request) {
 		path = "/"
 	}
 
-	safePath := fileutil.SafePath(strings.TrimPrefix(path, "/"))
+	safePath := middleware.SafeRequestPath(path)
 
 	info, err := h.fs.Stat(safePath)
 	if err != nil {
@@ -108,8 +113,6 @@ func (h *File) handleFile(w http.ResponseWriter, r *http.Request, path string) {
 		http.Error(w, "File too large", http.StatusRequestEntityTooLarge)
 		return
 	}
-
-	h.setSecurityHeaders(w)
 
 	rangeHeader := r.Header.Get("Range")
 	rng, err := httprange.ParseRange(rangeHeader, info.Size())
@@ -170,17 +173,6 @@ func (h *File) closeFile(file io.ReadCloser, path string) {
 			slog.String("error", err.Error()),
 			slog.String("component", "file_handler"),
 		)
-	}
-}
-
-func (h *File) setSecurityHeaders(w http.ResponseWriter) {
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.Header().Set("X-Frame-Options", "DENY")
-	w.Header().Set("X-XSS-Protection", "1; mode=block")
-	w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
-
-	if h.config.EnableSecurity {
-		w.Header().Set("Content-Security-Policy", "default-src 'self'")
 	}
 }
 

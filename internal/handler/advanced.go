@@ -22,6 +22,7 @@ import (
 	"github.com/samzong/gofs/internal/config"
 	"github.com/samzong/gofs/internal/constants"
 	"github.com/samzong/gofs/internal/handler/templates"
+	"github.com/samzong/gofs/internal/middleware"
 	"github.com/samzong/gofs/pkg/fileutil"
 	"github.com/samzong/gofs/pkg/httprange"
 	"github.com/samzong/gofs/pkg/zipstream"
@@ -149,6 +150,14 @@ func NewAdvancedFile(fs internal.FileSystem, cfg *config.Config) *AdvancedFile {
 
 func (h *AdvancedFile) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var handler http.Handler = http.HandlerFunc(h.handleRequest)
+
+	// Build middleware chain
+	securityConfig := middleware.SecurityConfig{
+		EnableSecurity: h.config.EnableSecurity,
+		ContentSecurityPolicy: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
+			"img-src 'self' data:; font-src 'self'",
+	}
+	handler = middleware.SecurityHeaders(securityConfig)(handler)
 	handler = h.loggingMiddleware(handler)
 	handler = h.timeoutMiddleware(handler)
 	handler = h.corsMiddleware(handler)
@@ -214,7 +223,7 @@ func (h *AdvancedFile) handleAPI(w http.ResponseWriter, r *http.Request) {
 func (h *AdvancedFile) handleGetCSRFToken(w http.ResponseWriter, r *http.Request) {
 	token := h.csrfTokens.generateToken()
 	response := map[string]string{"token": token}
-	if err := writeJSON(w, response); err != nil {
+	if err := middleware.WriteJSON(w, response); err != nil {
 		h.logger.Warn("Failed to write CSRF token response",
 			slog.String("error", err.Error()))
 	}
@@ -255,28 +264,28 @@ func (h *AdvancedFile) validateCSRFRequest(r *http.Request) bool {
 func (h *AdvancedFile) handleUpload(w http.ResponseWriter, r *http.Request) {
 	file, header, err := h.parseUploadRequest(r)
 	if err != nil {
-		h.writeError(w, err.Error(), http.StatusBadRequest)
+		middleware.WriteJSONError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	defer file.Close()
 
 	if r.Context().Err() != nil {
-		h.writeError(w, "Upload timeout", http.StatusRequestTimeout)
+		middleware.WriteJSONError(w, "Upload timeout", http.StatusRequestTimeout)
 		return
 	}
 
 	filename := fileutil.SafePath(header.Filename)
 	if filename == "" {
-		h.writeError(w, "Invalid filename", http.StatusBadRequest)
+		middleware.WriteJSONError(w, "Invalid filename", http.StatusBadRequest)
 		return
 	}
 
 	if err := h.saveUploadedFile(r.Context(), file, filename); err != nil {
 		if r.Context().Err() != nil {
-			h.writeError(w, "Upload timeout", http.StatusRequestTimeout)
+			middleware.WriteJSONError(w, "Upload timeout", http.StatusRequestTimeout)
 			return
 		}
-		h.writeError(w, "Failed to save file", http.StatusInternalServerError)
+		middleware.WriteJSONError(w, "Failed to save file", http.StatusInternalServerError)
 		return
 	}
 
@@ -289,7 +298,7 @@ func (h *AdvancedFile) handleUpload(w http.ResponseWriter, r *http.Request) {
 		File:    filename,
 		Size:    header.Size,
 	}
-	if err := writeJSON(w, response); err != nil {
+	if err := middleware.WriteJSON(w, response); err != nil {
 		h.logger.Warn("Failed to write JSON response for upload",
 			slog.String("filename", filename),
 			slog.String("error", err.Error()))
@@ -302,23 +311,23 @@ func (h *AdvancedFile) handleCreateFolder(w http.ResponseWriter, r *http.Request
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.writeError(w, "Invalid request", http.StatusBadRequest)
+		middleware.WriteJSONError(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
 
 	if r.Context().Err() != nil {
-		h.writeError(w, "Request timeout", http.StatusRequestTimeout)
+		middleware.WriteJSONError(w, "Request timeout", http.StatusRequestTimeout)
 		return
 	}
 
 	folderName := fileutil.SafePath(req.Path)
 	if folderName == "" {
-		h.writeError(w, "Invalid folder name", http.StatusBadRequest)
+		middleware.WriteJSONError(w, "Invalid folder name", http.StatusBadRequest)
 		return
 	}
 
 	if err := h.fs.Mkdir(folderName, 0755); err != nil {
-		h.writeError(w, "Failed to create folder", http.StatusInternalServerError)
+		middleware.WriteJSONError(w, "Failed to create folder", http.StatusInternalServerError)
 		return
 	}
 
@@ -329,7 +338,7 @@ func (h *AdvancedFile) handleCreateFolder(w http.ResponseWriter, r *http.Request
 		Success: true,
 		Folder:  folderName,
 	}
-	if err := writeJSON(w, response); err != nil {
+	if err := middleware.WriteJSON(w, response); err != nil {
 		h.logger.Warn("Failed to write JSON response for folder creation",
 			slog.String("folder", folderName),
 			slog.String("error", err.Error()))
@@ -353,12 +362,12 @@ func (h *AdvancedFile) handleZipDownload(w http.ResponseWriter, r *http.Request)
 
 	var req ZipRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.writeError(w, "Invalid request", http.StatusBadRequest)
+		middleware.WriteJSONError(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
 
 	if len(req.Paths) == 0 {
-		h.writeError(w, "No files selected", http.StatusBadRequest)
+		middleware.WriteJSONError(w, "No files selected", http.StatusBadRequest)
 		return
 	}
 
@@ -366,7 +375,7 @@ func (h *AdvancedFile) handleZipDownload(w http.ResponseWriter, r *http.Request)
 	var totalSize int64
 
 	for _, p := range req.Paths {
-		safePath := fileutil.SafePath(strings.TrimPrefix(p, "/"))
+		safePath := middleware.SafeRequestPath(p)
 		if safePath == "" {
 			continue
 		}
@@ -398,7 +407,7 @@ func (h *AdvancedFile) handleZipDownload(w http.ResponseWriter, r *http.Request)
 
 	if len(entries) == 0 && len(req.Paths) > 0 {
 		for _, p := range req.Paths {
-			safePath := fileutil.SafePath(strings.TrimPrefix(p, "/"))
+			safePath := middleware.SafeRequestPath(p)
 			info, err := h.fs.Stat(safePath)
 			if err == nil && info.IsDir() {
 				h.collectDirFiles(safePath, safePath, &entries)
@@ -407,7 +416,7 @@ func (h *AdvancedFile) handleZipDownload(w http.ResponseWriter, r *http.Request)
 	}
 
 	if len(entries) == 0 {
-		h.writeError(w, "No valid files to download", http.StatusBadRequest)
+		middleware.WriteJSONError(w, "No valid files to download", http.StatusBadRequest)
 		return
 	}
 
@@ -538,7 +547,7 @@ func (h *AdvancedFile) handleFileRequest(w http.ResponseWriter, r *http.Request)
 		path = "/"
 	}
 
-	safePath := fileutil.SafePath(strings.TrimPrefix(path, "/"))
+	safePath := middleware.SafeRequestPath(path)
 
 	info, err := h.fs.Stat(safePath)
 	if err != nil {
@@ -692,13 +701,6 @@ func (h *AdvancedFile) serveFile(w http.ResponseWriter, r *http.Request, path st
 		return
 	}
 
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.Header().Set("X-Frame-Options", "DENY")
-	w.Header().Set("X-XSS-Protection", "1; mode=block")
-	w.Header().Set("Content-Security-Policy",
-		"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "+
-			"img-src 'self' data:; font-src 'self'")
-
 	rangeHeader := r.Header.Get("Range")
 	rng, err := httprange.ParseRange(rangeHeader, info.Size())
 	if err != nil {
@@ -772,7 +774,7 @@ func (h *AdvancedFile) renderJSON(w http.ResponseWriter, path string, files []in
 		Count: len(items),
 	}
 
-	if err := writeJSON(w, response); err != nil {
+	if err := middleware.WriteJSON(w, response); err != nil {
 		h.logger.Warn("Failed to encode JSON for directory listing",
 			slog.String("path", path),
 			slog.String("error", err.Error()))
@@ -809,19 +811,6 @@ func (h *AdvancedFile) saveUploadedFile(ctx context.Context, src multipart.File,
 		}
 		return nil
 	}
-}
-
-func writeJSON[T any](w http.ResponseWriter, data T) error {
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(data); err != nil {
-		http.Error(w, "JSON encoding failed", http.StatusInternalServerError)
-		return fmt.Errorf("encoding JSON response: %w", err)
-	}
-	return nil
-}
-
-func (h *AdvancedFile) writeError(w http.ResponseWriter, message string, status int) {
-	http.Error(w, message, status)
 }
 
 func (h *AdvancedFile) corsMiddleware(next http.Handler) http.Handler {
