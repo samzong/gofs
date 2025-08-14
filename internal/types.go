@@ -3,7 +3,6 @@ package internal
 import (
 	"context"
 	"io"
-	"net/http"
 	"os"
 	"time"
 )
@@ -35,14 +34,6 @@ func (e *APIError) Error() string {
 	return e.Message
 }
 
-func NewAPIError(code, message string) *APIError {
-	return &APIError{
-		Code:    code,
-		Message: message,
-		Status:  http.StatusInternalServerError,
-	}
-}
-
 func (e *APIError) WithStatus(status int) *APIError {
 	e.Status = status
 	return e
@@ -66,9 +57,4 @@ const mountInfoKey contextKey = "mount_info"
 func WithMountInfo(ctx context.Context, path, name string, readonly bool) context.Context {
 	info := MountInfo{Path: path, Name: name, Readonly: readonly}
 	return context.WithValue(ctx, mountInfoKey, info)
-}
-
-func GetMountInfo(ctx context.Context) (MountInfo, bool) {
-	info, ok := ctx.Value(mountInfoKey).(MountInfo)
-	return info, ok
 }
