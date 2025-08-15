@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -114,6 +116,38 @@ func (h *File) handleFile(w http.ResponseWriter, r *http.Request, path string) {
 		return
 	}
 
+	// Generate ETag based on content hash if file supports seeking
+	var etag string
+	if seeker, ok := file.(io.ReadSeeker); ok {
+		var err error
+		etag, err = h.generateContentETag(seeker)
+		if err != nil {
+			h.logger.Warn("Failed to generate content-based ETag",
+				slog.String("path", path),
+				slog.String("error", err.Error()),
+			)
+			// Use fallback ETag based on file metadata
+			etag = fmt.Sprintf(`"gofs-%x-%x-%x"`,
+				[]byte(path),
+				info.Size(),
+				info.ModTime().Unix())
+		}
+	} else {
+		// Use fallback ETag for non-seekable files
+		etag = fmt.Sprintf(`"gofs-%x-%x-%x"`,
+			[]byte(path),
+			info.Size(),
+			info.ModTime().Unix())
+	}
+
+	// Check If-None-Match header for conditional requests
+	if match := r.Header.Get("If-None-Match"); match != "" {
+		if match == etag {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+	}
+
 	rangeHeader := r.Header.Get("Range")
 	rng, err := httprange.ParseRange(rangeHeader, info.Size())
 	if err != nil {
@@ -146,6 +180,7 @@ func (h *File) handleFile(w http.ResponseWriter, r *http.Request, path string) {
 
 		filename := filepath.Base(path)
 		w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=%q", filename))
+		w.Header().Set("ETag", etag)
 
 		if err := httprange.ServeContent(w, seeker, rng, info.Size(), mimeType); err != nil {
 			h.logger.Warn("Error serving partial content",
@@ -155,7 +190,7 @@ func (h *File) handleFile(w http.ResponseWriter, r *http.Request, path string) {
 			)
 		}
 	} else {
-		h.setFileHeaders(w, path, info)
+		h.setFileHeaders(w, path, info, etag)
 		if err := httprange.ServeFullContent(w, file, info.Size(), mimeType); err != nil {
 			h.logger.Warn("Error serving full content",
 				slog.String("path", path),
@@ -176,11 +211,39 @@ func (h *File) closeFile(file io.ReadCloser, path string) {
 	}
 }
 
-func (h *File) setFileHeaders(w http.ResponseWriter, path string, info internal.FileInfo) {
+func (h *File) setFileHeaders(w http.ResponseWriter, path string, info internal.FileInfo, etag string) {
 	filename := filepath.Base(path)
 	w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=%q", filename))
 	w.Header().Set("Content-Type", fileutil.DetectMimeType(path))
 	w.Header().Set("Content-Length", strconv.FormatInt(info.Size(), 10))
+	w.Header().Set("ETag", etag)
+}
+
+func (h *File) generateContentETag(file io.ReadSeeker) (string, error) {
+	// Save current position
+	currentPos, err := file.Seek(0, io.SeekCurrent)
+	if err != nil {
+		return "", err
+	}
+
+	// Seek to beginning
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		return "", err
+	}
+
+	// Calculate SHA-256 hash
+	hasher := sha256.New()
+	if _, err := io.Copy(hasher, file); err != nil {
+		return "", err
+	}
+
+	// Restore original position
+	if _, err := file.Seek(currentPos, io.SeekStart); err != nil {
+		return "", err
+	}
+
+	hash := hex.EncodeToString(hasher.Sum(nil))
+	return fmt.Sprintf(`"%s"`, hash), nil
 }
 
 func (h *File) renderJSON(w http.ResponseWriter, path string, files []internal.FileInfo) {

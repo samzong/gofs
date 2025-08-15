@@ -549,6 +549,12 @@ func (h *AdvancedFile) handleFileRequest(w http.ResponseWriter, r *http.Request)
 
 	safePath := middleware.SafeRequestPath(path)
 
+	// Check for path traversal attempts - SafeRequestPath returns empty string for dangerous paths
+	if safePath == "" && path != "/" {
+		http.Error(w, "Bad Request: Invalid path", http.StatusBadRequest)
+		return
+	}
+
 	info, err := h.fs.Stat(safePath)
 	if err != nil {
 		http.NotFound(w, r)
