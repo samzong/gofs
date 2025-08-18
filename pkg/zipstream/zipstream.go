@@ -98,7 +98,12 @@ func (zw *Writer) AddFile(entry FileEntry) error {
 	if entry.Info.IsDir() {
 		header.Name = ensureTrailingSlash(header.Name)
 	} else {
-		header.UncompressedSize64 = uint64(entry.Info.Size())
+		// Prevent integer overflow: ensure file size is non-negative before conversion
+		size := entry.Info.Size()
+		if size < 0 {
+			return fmt.Errorf("invalid file size %d for %s: file size cannot be negative", size, entry.Path)
+		}
+		header.UncompressedSize64 = uint64(size)
 	}
 
 	header.Method = zw.getCompressionMethod(header.Name)

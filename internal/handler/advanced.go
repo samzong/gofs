@@ -461,13 +461,21 @@ func (h *AdvancedFile) handleZipDownload(w http.ResponseWriter, r *http.Request)
 
 		entry.Reader = file
 		if err := zw.AddFile(entry); err != nil {
-			file.Close()
+			if closeErr := file.Close(); closeErr != nil {
+				h.logger.Warn("Failed to close file after ZIP error",
+					slog.String("path", entry.Path),
+					slog.String("close_error", closeErr.Error()))
+			}
 			h.logger.Warn("Failed to add file to ZIP",
 				slog.String("path", entry.Path),
 				slog.String("error", err.Error()))
 			continue
 		}
-		file.Close()
+		if err := file.Close(); err != nil {
+			h.logger.Warn("Failed to close file after ZIP processing",
+				slog.String("path", entry.Path),
+				slog.String("error", err.Error()))
+		}
 	}
 
 	h.logger.Info("ZIP download completed",

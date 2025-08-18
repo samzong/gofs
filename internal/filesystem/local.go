@@ -133,7 +133,11 @@ func (fs *Local) Create(name string) (io.WriteCloser, error) {
 		return nil, fmt.Errorf("invalid path: %s", name)
 	}
 
-	file, err := os.Create(path)
+	// Security: Path is validated through multi-layer protection:
+	// 1. Handler layer: fileutil.SafePath() validates user input
+	// 2. getFullPath(): Additional fileutil.SafePath() + filepath.Rel() validation
+	// 3. Final check: Ensures path stays within root directory bounds
+	file, err := os.Create(path) // #nosec G304 - Path validated through secure getFullPath chain
 	if err != nil {
 		return nil, fmt.Errorf("creating file %q: %w", path, err)
 	}

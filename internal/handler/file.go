@@ -296,6 +296,11 @@ func (h *File) renderHTML(w http.ResponseWriter, path string, files []internal.F
 		})
 	}
 
+	// Security: Get validated CSS from embedded themes only. The theme parameter
+	// is validated against a whitelist in config validation, and GetThemeCSS
+	// only returns CSS from embedded files compiled into the binary.
+	themeCSS := templates.GetThemeCSS(theme)
+
 	data := struct {
 		Path   string
 		Files  []FileItem
@@ -306,7 +311,7 @@ func (h *File) renderHTML(w http.ResponseWriter, path string, files []internal.F
 		Path:   "/" + path,
 		Parent: path != "",
 		Files:  items,
-		CSS:    template.CSS(templates.GetThemeCSS(theme)),
+		CSS:    template.CSS(themeCSS), // #nosec G203 - CSS comes from embedded files only, theme is validated
 		Theme:  theme,
 	}
 
