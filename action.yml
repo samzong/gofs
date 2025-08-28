@@ -1,0 +1,60 @@
+name: "GoFS File Server"
+description: "Serve directories with GoFS (auth, themes, WebDAV) inside a GitHub Actions job."
+author: "samzong"
+branding:
+  icon: "package"
+  color: "blue"
+
+inputs:
+  dir:
+    description: "Directory to serve (path inside the container). Defaults to the GitHub workspace."
+    required: false
+    default: "/github/workspace"
+  host:
+    description: "Host interface to bind."
+    required: false
+    default: "0.0.0.0"
+  port:
+    description: "Port to listen on."
+    required: false
+    default: "8000"
+  theme:
+    description: "UI theme: default, classic, advanced."
+    required: false
+    default: "default"
+  show_hidden:
+    description: "Show hidden files and directories."
+    required: false
+    default: "false"
+  auth:
+    description: "Enable HTTP basic auth as user:password."
+    required: false
+    default: ""
+  enable_webdav:
+    description: "Enable read-only WebDAV on /dav."
+    required: false
+    default: "false"
+  log_level:
+    description: "Log level: debug, info, warn, error."
+    required: false
+    default: "info"
+
+runs:
+  using: "docker"
+  image: "Dockerfile"
+  entrypoint: "/gofs"
+  env:
+    # Logger is env-driven only
+    GOFS_LOG_LEVEL: ${{ inputs.log_level }}
+  args:
+    - "--host"
+    - ${{ inputs.host }}
+    - "--port"
+    - ${{ inputs.port }}
+    - "--theme"
+    - ${{ inputs.theme }}
+    - "--show-hidden=${{ inputs.show_hidden }}"
+    - "--enable-webdav=${{ inputs.enable_webdav }}"
+    - "--dir"
+    - ${{ inputs.dir }}
+
