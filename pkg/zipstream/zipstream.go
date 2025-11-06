@@ -1,3 +1,5 @@
+// Package zipstream provides streaming ZIP file creation with concurrent file reading
+// and configurable compression. It uses sync.Pool for efficient buffer reuse.
 package zipstream
 
 import (
@@ -10,6 +12,14 @@ import (
 	"sync"
 	"time"
 )
+
+// bufferPool reduces buffer allocation overhead in file copying operations
+var bufferPool = sync.Pool{
+	New: func() any {
+		buf := make([]byte, 32*1024)
+		return &buf
+	},
+}
 
 type Options struct {
 	CompressionLevel uint16
@@ -131,7 +141,28 @@ func (zw *Writer) AddFile(entry FileEntry) error {
 	}
 	defer reader.Close()
 
-	buf := make([]byte, zw.opts.BufferSize)
+	// Get buffer from pool or allocate new one if size differs
+	var buf []byte
+	var pooledBuf *[]byte
+	pooled := bufferPool.Get()
+	if p, ok := pooled.(*[]byte); ok && len(*p) >= zw.opts.BufferSize {
+		pooledBuf = p
+		buf = (*p)[:zw.opts.BufferSize]
+	} else {
+		if pooled != nil {
+			bufferPool.Put(pooled)
+		}
+		buf = make([]byte, zw.opts.BufferSize)
+		if zw.opts.BufferSize == 32*1024 {
+			pooledBuf = &buf
+		}
+	}
+	defer func() {
+		if pooledBuf != nil {
+			bufferPool.Put(pooledBuf)
+		}
+	}()
+
 	var written int64
 
 	for {
