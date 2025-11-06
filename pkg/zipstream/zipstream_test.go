@@ -39,19 +39,21 @@ func TestWriterBufferPool(t *testing.T) {
 
 	w := NewWriter(&out, opts)
 
-	buf := w.getBuffer()
+	bufPtr := w.getBuffer()
+	buf := *bufPtr
 	if len(buf) != opts.BufferSize {
 		t.Fatalf("expected buffer of size %d, got %d", opts.BufferSize, len(buf))
 	}
 
-	w.putBuffer(buf)
+	w.putBuffer(bufPtr)
 
-	buf2 := w.getBuffer()
+	bufPtr2 := w.getBuffer()
+	buf2 := *bufPtr2
 	if len(buf2) != opts.BufferSize {
 		t.Fatalf("expected buffer of size %d after reuse, got %d", opts.BufferSize, len(buf2))
 	}
 
-	w.putBuffer(buf2)
+	w.putBuffer(bufPtr2)
 }
 
 func TestAddFile(t *testing.T) {

@@ -138,8 +138,9 @@ func (zw *Writer) AddFile(entry FileEntry) error {
 	}
 	defer reader.Close()
 
-	buf := zw.getBuffer()
-	defer zw.putBuffer(buf)
+	bufPtr := zw.getBuffer()
+	defer zw.putBuffer(bufPtr)
+	buf := *bufPtr
 	var written int64
 
 	for {
@@ -235,21 +236,28 @@ func ensureTrailingSlash(path string) string {
 	return path
 }
 
-func (zw *Writer) getBuffer() []byte {
+func (zw *Writer) getBuffer() *[]byte {
 	if zw.bufferPool == nil {
-		return make([]byte, zw.opts.BufferSize)
+		buf := make([]byte, zw.opts.BufferSize)
+		return &buf
 	}
 
-	return *zw.bufferPool.Get().(*[]byte)
+	bufPtr := zw.bufferPool.Get().(*[]byte)
+	buf := *bufPtr
+	if len(buf) != cap(buf) {
+		*bufPtr = buf[:cap(buf)]
+	}
+	return bufPtr
 }
 
-func (zw *Writer) putBuffer(buf []byte) {
-	if zw.bufferPool == nil || buf == nil {
+func (zw *Writer) putBuffer(bufPtr *[]byte) {
+	if zw.bufferPool == nil || bufPtr == nil {
 		return
 	}
 
-	buf = buf[:cap(buf)]
-	zw.bufferPool.Put(&buf)
+	buf := *bufPtr
+	*bufPtr = buf[:cap(buf)]
+	zw.bufferPool.Put(bufPtr)
 }
 
 func StreamFiles(w io.Writer, files []FileEntry, opts Options) error {
