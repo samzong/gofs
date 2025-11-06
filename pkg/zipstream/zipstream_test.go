@@ -26,6 +26,34 @@ func TestNewWriter(t *testing.T) {
 	if w.opts.CompressionLevel != zip.Store {
 		t.Errorf("Expected Store compression, got %d", w.opts.CompressionLevel)
 	}
+
+	if w.bufferPool == nil {
+		t.Fatal("buffer pool should be initialized")
+	}
+}
+
+func TestWriterBufferPool(t *testing.T) {
+	var out bytes.Buffer
+	opts := DefaultOptions()
+	opts.BufferSize = 1024
+
+	w := NewWriter(&out, opts)
+
+	bufPtr := w.getBuffer()
+	buf := *bufPtr
+	if len(buf) != opts.BufferSize {
+		t.Fatalf("expected buffer of size %d, got %d", opts.BufferSize, len(buf))
+	}
+
+	w.putBuffer(bufPtr)
+
+	bufPtr2 := w.getBuffer()
+	buf2 := *bufPtr2
+	if len(buf2) != opts.BufferSize {
+		t.Fatalf("expected buffer of size %d after reuse, got %d", opts.BufferSize, len(buf2))
+	}
+
+	w.putBuffer(bufPtr2)
 }
 
 func TestAddFile(t *testing.T) {
