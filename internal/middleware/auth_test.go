@@ -730,7 +730,7 @@ func TestBasicAuthMiddleware_HealthCheckBypass(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("X-Handler-Called", "true")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("healthy"))
@@ -783,7 +783,7 @@ func TestBasicAuthMiddleware_Caching(t *testing.T) {
 	}
 
 	callCount := 0
-	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		callCount++
 		w.WriteHeader(http.StatusOK)
 	})
@@ -836,7 +836,7 @@ func TestBasicAuthMiddleware_ConcurrentAccess(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 	handler := auth.Middleware(nextHandler)

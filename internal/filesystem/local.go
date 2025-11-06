@@ -287,7 +287,7 @@ func (r *ReadonlyFileSystem) Create(name string) (io.WriteCloser, error) {
 }
 
 // Mkdir is disabled for read-only filesystem
-func (r *ReadonlyFileSystem) Mkdir(name string, perm os.FileMode) error {
+func (r *ReadonlyFileSystem) Mkdir(name string, _ os.FileMode) error {
 	return fmt.Errorf("read-only filesystem: cannot create directory %s", name)
 }
 

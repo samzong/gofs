@@ -247,7 +247,7 @@ func StreamDirectory(w io.Writer, dirPath string, opts Options) error {
 	defer zw.Close()
 
 	var fileCount int
-	_ = filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+	_ = filepath.Walk(dirPath, func(_ string, info os.FileInfo, err error) error {
 		if err == nil && !info.IsDir() {
 			fileCount++
 		}

@@ -514,7 +514,7 @@ type mockFileSystem struct {
 	readDirError error
 }
 
-func (m *mockFileSystem) Open(name string) (io.ReadCloser, error) {
+func (m *mockFileSystem) Open(_ string) (io.ReadCloser, error) {
 	if m.openError != nil {
 		return nil, m.openError
 	}
@@ -538,15 +538,15 @@ func (m *mockFileSystem) ReadDir(name string) ([]internal.FileInfo, error) {
 	}, nil
 }
 
-func (m *mockFileSystem) Create(name string) (io.WriteCloser, error) {
+func (m *mockFileSystem) Create(_ string) (io.WriteCloser, error) {
 	return nil, os.ErrPermission
 }
 
-func (m *mockFileSystem) Mkdir(name string, perm os.FileMode) error {
+func (m *mockFileSystem) Mkdir(_ string, _ os.FileMode) error {
 	return os.ErrPermission
 }
 
-func (m *mockFileSystem) Remove(name string) error {
+func (m *mockFileSystem) Remove(_ string) error {
 	return os.ErrPermission
 }
 

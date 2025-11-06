@@ -23,7 +23,7 @@ func NewWebDAVAdapter(fs internal.FileSystem) webdav.FileSystem {
 }
 
 // Mkdir implements webdav.FileSystem (read-only, returns error)
-func (w *webDAVAdapter) Mkdir(_ context.Context, name string, _ os.FileMode) error {
+func (w *webDAVAdapter) Mkdir(_ context.Context, _ string, _ os.FileMode) error {
 	return webdav.ErrForbidden
 }
 
@@ -77,12 +77,12 @@ func (w *webDAVAdapter) OpenFile(_ context.Context, name string, flag int, _ os.
 }
 
 // RemoveAll implements webdav.FileSystem (read-only, returns error)
-func (w *webDAVAdapter) RemoveAll(_ context.Context, name string) error {
+func (w *webDAVAdapter) RemoveAll(_ context.Context, _ string) error {
 	return webdav.ErrForbidden
 }
 
 // Rename implements webdav.FileSystem (read-only, returns error)
-func (w *webDAVAdapter) Rename(_ context.Context, oldName, newName string) error {
+func (w *webDAVAdapter) Rename(_ context.Context, _, _ string) error {
 	return webdav.ErrForbidden
 }
 
@@ -120,13 +120,13 @@ func (f *webDAVFile) Write([]byte) (int, error) {
 }
 
 // Seek implements webdav.File
-func (f *webDAVFile) Seek(offset int64, whence int) (int64, error) {
+func (f *webDAVFile) Seek(_ int64, _ int) (int64, error) {
 	// Most read operations don't need seek, return error
 	return 0, errors.New("seek not supported")
 }
 
 // Readdir implements webdav.File (returns error for regular files)
-func (f *webDAVFile) Readdir(count int) ([]os.FileInfo, error) {
+func (f *webDAVFile) Readdir(_ int) ([]os.FileInfo, error) {
 	return nil, errors.New("not a directory")
 }
 

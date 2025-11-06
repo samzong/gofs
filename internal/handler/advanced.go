@@ -220,7 +220,7 @@ func (h *AdvancedFile) handleAPI(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *AdvancedFile) handleGetCSRFToken(w http.ResponseWriter, r *http.Request) {
+func (h *AdvancedFile) handleGetCSRFToken(w http.ResponseWriter, _ *http.Request) {
 	token := h.csrfTokens.generateToken()
 	response := map[string]string{"token": token}
 	if err := middleware.WriteJSON(w, response); err != nil {
@@ -240,8 +240,8 @@ func (h *AdvancedFile) validateCSRFRequest(r *http.Request) bool {
 
 	if origin != "" || referer != "" {
 		host := r.Host
-		expectedOrigin := fmt.Sprintf("http://%s", host)
-		expectedOriginHTTPS := fmt.Sprintf("https://%s", host)
+		expectedOrigin := "http://" + host
+		expectedOriginHTTPS := "https://" + host
 
 		if origin != "" && origin != expectedOrigin && origin != expectedOriginHTTPS {
 			h.logger.Warn("CSRF: Origin mismatch",

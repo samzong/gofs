@@ -15,7 +15,7 @@ func TestSecurityHeaders_DefaultConfiguration(t *testing.T) {
 	}
 
 	middleware := SecurityHeaders(config)
-	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("test response"))
 	})
@@ -61,7 +61,7 @@ func TestSecurityHeaders_EnabledSecurity(t *testing.T) {
 	}
 
 	middleware := SecurityHeaders(config)
-	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -95,7 +95,7 @@ func TestSecurityHeaders_CustomCSP(t *testing.T) {
 	}
 
 	middleware := SecurityHeaders(config)
-	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -119,7 +119,7 @@ func TestSecurityHeaders_EmptyCSPWithSecurity(t *testing.T) {
 	}
 
 	middleware := SecurityHeaders(config)
-	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -143,7 +143,7 @@ func TestSecurityHeaders_MultipleRequests(t *testing.T) {
 	}
 
 	middleware := SecurityHeaders(config)
-	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -178,7 +178,7 @@ func TestSecurityHeaders_DifferentHTTPMethods(t *testing.T) {
 	}
 
 	middleware := SecurityHeaders(config)
-	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -497,7 +497,7 @@ func TestSecurityHeaders_WithJSONResponse(t *testing.T) {
 	}
 
 	middleware := SecurityHeaders(config)
-	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		data := map[string]string{
 			"message": "test response",
 			"status":  "success",
@@ -546,7 +546,7 @@ func BenchmarkSecurityHeaders_Enabled(b *testing.B) {
 	}
 
 	middleware := SecurityHeaders(config)
-	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -566,7 +566,7 @@ func BenchmarkSecurityHeaders_Disabled(b *testing.B) {
 	}
 
 	middleware := SecurityHeaders(config)
-	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
