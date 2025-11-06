@@ -14,7 +14,11 @@ LABEL org.opencontainers.image.vendor="gofs" \
       security.nonroot="true"
 
 # Copy the statically linked binary from GoReleaser
-COPY gofs /gofs
+# For dockers_v2, GoReleaser runs one build per platform; BuildKit exposes
+# TARGETOS/TARGETARCH so we can pull the matching binary.
+ARG TARGETOS
+ARG TARGETARCH
+COPY ${TARGETOS}/${TARGETARCH}/gofs /gofs
 
 # Set security context - Chainguard images run as nonroot by default
 USER 65532:65532

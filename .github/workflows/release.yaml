@@ -2,7 +2,7 @@ name: Release
 
 on:
   push:
-    tags: [ 'v*' ]
+    tags: ["v*"]
 
 jobs:
   release:
@@ -10,137 +10,142 @@ jobs:
     permissions:
       contents: write
       packages: write
-      id-token: write  # Required for Cosign signing
+      id-token: write # Required for Cosign signing
       security-events: write
     outputs:
       version: ${{ steps.version.outputs.version }}
       release-created: ${{ steps.release.outputs.release-created }}
     steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-    
-    - name: Extract version
-      id: version
-      run: |
-        VERSION=${GITHUB_REF#refs/tags/}
-        echo "version=$VERSION" >> $GITHUB_OUTPUT
-        echo "Releasing version: $VERSION"
-    
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version-file: 'go.mod'
-        cache: true
-        cache-dependency-path: |
-          go.sum
-          go.mod
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+      - name: Extract version
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Releasing version: $VERSION"
 
-    - name: Login to GitHub Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: ghcr.io
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-    
-    - name: Login to Docker Hub
-      uses: docker/login-action@v3
-      with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
-    
-    - name: Update Docker Hub README
-      uses: peter-evans/dockerhub-description@v4
-      with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
-        repository: ${{ secrets.DOCKERHUB_USERNAME }}/gofs
-        readme-filepath: ./README.docker.md
-        short-description: "A lightweight, fast HTTP file server written in Go"
-      
-    - name: Run GoReleaser
-      id: release
-      uses: goreleaser/goreleaser-action@v6
-      with:
-        distribution: goreleaser
-        version: '~> v2'
-        args: release --clean
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_PAT }}
-        DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-        CGO_ENABLED: 0
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+          cache: true
+          cache-dependency-path: |
+            go.sum
+            go.mod
 
-    - name: Run Trivy vulnerability scanner on source code
-      uses: aquasecurity/trivy-action@0.28.0
-      with:
-        scan-type: 'fs'
-        scan-ref: '.'
-        format: 'sarif'
-        output: 'trivy-results.sarif'
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-    - name: Upload Trivy scan results to GitHub Security tab
-      uses: github/codeql-action/upload-sarif@v3
-      if: always()
-      with:
-        sarif_file: 'trivy-results.sarif'
-        category: 'trivy-source'
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Scan Docker images with Trivy
-      uses: aquasecurity/trivy-action@0.28.0
-      with:
-        image-ref: 'ghcr.io/${{ github.repository }}:${{ github.ref_name }}'
-        format: 'sarif'
-        output: 'trivy-image-results.sarif'
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-    - name: Upload Docker image scan results
-      uses: github/codeql-action/upload-sarif@v3
-      if: always()
-      with:
-        sarif_file: 'trivy-image-results.sarif'
-        category: 'trivy-image'
+      - name: Update Docker Hub README
+        uses: peter-evans/dockerhub-description@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: ${{ secrets.DOCKERHUB_USERNAME }}/gofs
+          readme-filepath: ./README.docker.md
+          short-description: "A lightweight, fast HTTP file server written in Go"
 
-    - name: Generate SBOM for source code
-      uses: anchore/sbom-action@v0.17.2
-      with:
-        path: .
-        format: spdx-json
-        output-file: sbom-source.spdx.json
+      - name: Run GoReleaser
+        id: release
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_PAT }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          CGO_ENABLED: 0
+        continue-on-error: false
 
-    - name: Generate SBOM for Docker image
-      uses: anchore/sbom-action@v0.17.2
-      with:
-        image: ghcr.io/${{ github.repository }}:${{ github.ref_name }}
-        format: spdx-json
-        output-file: sbom-image.spdx.json
+      - name: Run Trivy vulnerability scanner on source code
+        if: steps.release.outcome == 'success'
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+          format: "sarif"
+          output: "trivy-results.sarif"
+        continue-on-error: true
 
-    - name: Install Cosign for container signing
-      uses: sigstore/cosign-installer@v3.7.0
+      - name: Upload Trivy scan results to GitHub Security tab
+        if: steps.release.outcome == 'success' && hashFiles('trivy-results.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: "trivy-results.sarif"
+          category: "trivy-source"
 
-    - name: Sign container image with Cosign
-      run: |
-        cosign sign --yes ghcr.io/${{ github.repository }}:${{ github.ref_name }}
-        cosign sign --yes ghcr.io/${{ github.repository }}:latest
+      - name: Scan Docker images with Trivy
+        if: steps.release.outcome == 'success'
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: "ghcr.io/${{ github.repository }}:${{ github.ref_name }}"
+          format: "sarif"
+          output: "trivy-image-results.sarif"
+        continue-on-error: true
 
-    - name: Attest SBOM to container image
-      run: |
-        cosign attest --yes --predicate sbom-source.spdx.json --type spdxjson ghcr.io/${{ github.repository }}:${{ github.ref_name }}
-        cosign attest --yes --predicate sbom-image.spdx.json --type spdxjson ghcr.io/${{ github.repository }}:latest
+      - name: Upload Docker image scan results
+        if: steps.release.outcome == 'success' && hashFiles('trivy-image-results.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: "trivy-image-results.sarif"
+          category: "trivy-image"
 
-    - name: Upload SBOM artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: sbom-files
-        path: |
-          sbom-source.spdx.json
-          sbom-image.spdx.json
+      - name: Generate SBOM for source code
+        uses: anchore/sbom-action@v0.17.2
+        with:
+          path: .
+          format: spdx-json
+          output-file: sbom-source.spdx.json
 
-    # 关键：通知 release 完成
-    - name: Mark release as completed
-      run: |
-        echo "✅ Release ${{ steps.version.outputs.version }} completed successfully"
-        echo "release-created=true" >> $GITHUB_OUTPUT
+      - name: Generate SBOM for Docker image
+        uses: anchore/sbom-action@v0.17.2
+        with:
+          image: ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+          format: spdx-json
+          output-file: sbom-image.spdx.json
+
+      - name: Install Cosign for container signing
+        uses: sigstore/cosign-installer@v3.7.0
+
+      - name: Sign container image with Cosign
+        run: |
+          cosign sign --yes ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+          cosign sign --yes ghcr.io/${{ github.repository }}:latest
+
+      - name: Attest SBOM to container image
+        run: |
+          cosign attest --yes --predicate sbom-source.spdx.json --type spdxjson ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+          cosign attest --yes --predicate sbom-image.spdx.json --type spdxjson ghcr.io/${{ github.repository }}:latest
+
+      - name: Upload SBOM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-files
+          path: |
+            sbom-source.spdx.json
+            sbom-image.spdx.json
+
+      # 关键：通知 release 完成
+      - name: Mark release as completed
+        run: |
+          echo "✅ Release ${{ steps.version.outputs.version }} completed successfully"
+          echo "release-created=true" >> $GITHUB_OUTPUT
