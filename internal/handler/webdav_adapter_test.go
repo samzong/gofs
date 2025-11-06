@@ -675,7 +675,7 @@ type mockWebDAVFileSystem struct {
 	readDirError error
 }
 
-func (m *mockWebDAVFileSystem) Open(name string) (io.ReadCloser, error) {
+func (m *mockWebDAVFileSystem) Open(_ string) (io.ReadCloser, error) {
 	if m.openError != nil {
 		return nil, m.openError
 	}
@@ -699,15 +699,15 @@ func (m *mockWebDAVFileSystem) ReadDir(name string) ([]internal.FileInfo, error)
 	}, nil
 }
 
-func (m *mockWebDAVFileSystem) Create(name string) (io.WriteCloser, error) {
+func (m *mockWebDAVFileSystem) Create(_ string) (io.WriteCloser, error) {
 	return nil, os.ErrPermission
 }
 
-func (m *mockWebDAVFileSystem) Mkdir(name string, perm os.FileMode) error {
+func (m *mockWebDAVFileSystem) Mkdir(_ string, _ os.FileMode) error {
 	return os.ErrPermission
 }
 
-func (m *mockWebDAVFileSystem) Remove(name string) error {
+func (m *mockWebDAVFileSystem) Remove(_ string) error {
 	return os.ErrPermission
 }
 

@@ -318,7 +318,7 @@ func TestContextKey_TypeSafety(t *testing.T) {
 }
 
 // Test interfaces are correctly defined (compilation test)
-func TestFileSystemInterface(t *testing.T) {
+func TestFileSystemInterface(_ *testing.T) {
 	// This test ensures the interface is properly defined
 	// If this compiles, the interface definition is correct
 
@@ -327,7 +327,7 @@ func TestFileSystemInterface(t *testing.T) {
 	// Zero value of interface is nil - test passes by compilation
 }
 
-func TestFileInfoInterface(t *testing.T) {
+func TestFileInfoInterface(_ *testing.T) {
 	// This test ensures the interface is properly defined
 	// If this compiles, the interface definition is correct
 
