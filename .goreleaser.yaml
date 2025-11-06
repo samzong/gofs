@@ -3,6 +3,13 @@
 
 version: 2
 
+# Define common variables for maintainability
+env:
+  - RELEASE_OWNER=samzong
+  - PROJECT_DESCRIPTION=A lightweight, fast HTTP file server written in Go
+  - HOMEBREW_TAP_NAME=homebrew-tap
+  - HOMEBREW_BRANCH=main
+
 project_name: gofs
 
 before:
@@ -67,8 +74,8 @@ dockers_v2:
       - linux/amd64
       - linux/arm64
     images:
-      - "ghcr.io/samzong/{{ .ProjectName }}"
-      - "samzong/{{ .ProjectName }}"
+      - "ghcr.io/{{ .Env.RELEASE_OWNER }}/{{ .ProjectName }}"
+      - "{{ .Env.RELEASE_OWNER }}/{{ .ProjectName }}"
     tags:
       - "{{ .Tag }}"
       - "latest"
@@ -79,12 +86,12 @@ dockers_v2:
       org.opencontainers.image.title: "{{ .ProjectName }}"
       org.opencontainers.image.revision: "{{ .FullCommit }}"
       org.opencontainers.image.version: "{{ .Version }}"
-      org.opencontainers.image.source: "https://github.com/samzong/{{ .ProjectName }}"
-      org.opencontainers.image.description: "Simple file server written in Go"
+      org.opencontainers.image.source: "https://github.com/{{ .Env.RELEASE_OWNER }}/{{ .ProjectName }}"
+      org.opencontainers.image.description: "{{ .Env.PROJECT_DESCRIPTION }}"
 
 release:
   github:
-    owner: "samzong"
+    owner: "{{ .Env.RELEASE_OWNER }}"
     name: "{{ .ProjectName }}"
   draft: false
   prerelease: auto
@@ -99,36 +106,36 @@ release:
 
     ```bash
     # Pull from GitHub Container Registry
-    docker pull ghcr.io/samzong/{{ .ProjectName }}:{{ .Tag }}
-    docker pull ghcr.io/samzong/{{ .ProjectName }}:latest
-
+    docker pull ghcr.io/{{ .Env.RELEASE_OWNER }}/{{ .ProjectName }}:{{ .Tag }}
+    docker pull ghcr.io/{{ .Env.RELEASE_OWNER }}/{{ .ProjectName }}:latest
+    
     # Pull from Docker Hub
-    docker pull samzong/{{ .ProjectName }}:{{ .Tag }}
-    docker pull samzong/{{ .ProjectName }}:latest
-
+    docker pull {{ .Env.RELEASE_OWNER }}/{{ .ProjectName }}:{{ .Tag }}
+    docker pull {{ .Env.RELEASE_OWNER }}/{{ .ProjectName }}:latest
+    
     # Run the container
-    docker run -p 8000:8000 -v $(pwd):/data:ro samzong/{{ .ProjectName }}:{{ .Tag }}
+    docker run -p 8000:8000 -v $(pwd):/data:ro {{ .Env.RELEASE_OWNER }}/{{ .ProjectName }}:{{ .Tag }}
     ```
 
     Supported architectures: `linux/amd64`, `linux/arm64`
   footer: |
-    **Full Changelog**: https://github.com/samzong/{{ .ProjectName }}/compare/{{ .PreviousTag }}...{{ .Tag }}
+    **Full Changelog**: https://github.com/{{ .Env.RELEASE_OWNER }}/{{ .ProjectName }}/compare/{{ .PreviousTag }}...{{ .Tag }}
 
 brews:
   - name: gofs
     repository:
-      owner: "samzong"
-      name: homebrew-tap
-      branch: "update-gofs-{{ .Tag }}"
+      owner: "{{ .Env.RELEASE_OWNER }}"
+      name: "{{ .Env.HOMEBREW_TAP_NAME }}"
+      branch: "update-{{ .ProjectName }}-{{ .Tag }}"
       pull_request:
         enabled: true
         base:
-          branch: main
+          branch: "{{ .Env.HOMEBREW_BRANCH }}"
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-    homepage: "https://github.com/samzong/{{ .ProjectName }}"
-    description: "A lightweight, fast HTTP file server written in Go"
+    homepage: "https://github.com/{{ .Env.RELEASE_OWNER }}/{{ .ProjectName }}"
+    description: "{{ .Env.PROJECT_DESCRIPTION }}"
     license: "MIT"
-    url_template: "https://github.com/samzong/{{ .ProjectName }}/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+    url_template: "https://github.com/{{ .Env.RELEASE_OWNER }}/{{ .ProjectName }}/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
     commit_author:
       name: github-actions[bot]
       email: 41898282+github-actions[bot]@users.noreply.github.com
