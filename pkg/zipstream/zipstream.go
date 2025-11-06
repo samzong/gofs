@@ -239,12 +239,7 @@ func (zw *Writer) getBuffer() []byte {
 		return make([]byte, zw.opts.BufferSize)
 	}
 
-	buf := zw.bufferPool.Get()
-	if buf == nil {
-		return make([]byte, zw.opts.BufferSize)
-	}
-
-	return buf.([]byte)
+	return zw.bufferPool.Get().([]byte)
 }
 
 func (zw *Writer) putBuffer(buf []byte) {
