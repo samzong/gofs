@@ -58,71 +58,33 @@ changelog:
       - Merge pull request
       - Merge branch
 
-dockers:
-  - id: gofs-amd64
-    goos: linux
-    goarch: amd64
+dockers_v2:
+  - id: gofs
     dockerfile: Dockerfile.goreleaser
-    use: buildx
-    image_templates:
-      - "ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}:{{ .Tag }}-amd64"
-      - "ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}:latest-amd64"
-      - "{{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:{{ .Tag }}-amd64"
-      - "{{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:latest-amd64"
-    build_flag_templates:
+    ids:
+      - gofs
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    images:
+      - "ghcr.io/samzong/{{ .ProjectName }}"
+      - "samzong/{{ .ProjectName }}"
+    tags:
+      - "{{ .Tag }}"
+      - "latest"
+    flags:
       - "--pull"
-      - "--label=org.opencontainers.image.created={{.Date}}"
-      - "--label=org.opencontainers.image.title={{.ProjectName}}" 
-      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-      - "--label=org.opencontainers.image.version={{.Version}}"
-      - "--label=org.opencontainers.image.source=https://github.com/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}"
-      - "--label=org.opencontainers.image.description=Simple file server written in Go"
-      - "--platform=linux/amd64"
-
-  - id: gofs-arm64
-    goos: linux
-    goarch: arm64
-    dockerfile: Dockerfile.goreleaser
-    use: buildx
-    image_templates:
-      - "ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}:{{ .Tag }}-arm64"
-      - "ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}:latest-arm64"
-      - "{{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:{{ .Tag }}-arm64"
-      - "{{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:latest-arm64"
-    build_flag_templates:
-      - "--pull"
-      - "--label=org.opencontainers.image.created={{.Date}}"
-      - "--label=org.opencontainers.image.title={{.ProjectName}}"
-      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-      - "--label=org.opencontainers.image.version={{.Version}}"
-      - "--label=org.opencontainers.image.source=https://github.com/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}"
-      - "--label=org.opencontainers.image.description=Simple file server written in Go"
-      - "--platform=linux/arm64"
-
-docker_manifests:
-  - name_template: "ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}:{{ .Tag }}"
-    image_templates:
-      - "ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}:{{ .Tag }}-amd64"
-      - "ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}:{{ .Tag }}-arm64"
-  
-  - name_template: "ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}:latest"
-    image_templates:
-      - "ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}:latest-amd64"
-      - "ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}:latest-arm64"
-
-  - name_template: "{{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:{{ .Tag }}"
-    image_templates:
-      - "{{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:{{ .Tag }}-amd64"
-      - "{{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:{{ .Tag }}-arm64"
-  
-  - name_template: "{{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:latest"
-    image_templates:
-      - "{{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:latest-amd64"
-      - "{{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:latest-arm64"
+    labels:
+      org.opencontainers.image.created: "{{ .Date }}"
+      org.opencontainers.image.title: "{{ .ProjectName }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.source: "https://github.com/samzong/{{ .ProjectName }}"
+      org.opencontainers.image.description: "Simple file server written in Go"
 
 release:
   github:
-    owner: "{{ .Env.GITHUB_REPOSITORY_OWNER }}"
+    owner: "samzong"
     name: "{{ .ProjectName }}"
   draft: false
   prerelease: auto
@@ -130,33 +92,32 @@ release:
   replace_existing_artifacts: true
   header: |
     ## What's Changed
-    
+
     ### Docker Images
-    
+
     Multi-architecture Docker images are available on GitHub Container Registry and Docker Hub:
-    
+
     ```bash
     # Pull from GitHub Container Registry
-    docker pull ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}:{{ .Tag }}
-    docker pull ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}:latest
-    
+    docker pull ghcr.io/samzong/{{ .ProjectName }}:{{ .Tag }}
+    docker pull ghcr.io/samzong/{{ .ProjectName }}:latest
+
     # Pull from Docker Hub
-    docker pull {{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:{{ .Tag }}
-    docker pull {{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:latest
-    
+    docker pull samzong/{{ .ProjectName }}:{{ .Tag }}
+    docker pull samzong/{{ .ProjectName }}:latest
+
     # Run the container
-    docker run -p 8000:8000 -v $(pwd):/data:ro {{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:{{ .Tag }}
+    docker run -p 8000:8000 -v $(pwd):/data:ro samzong/{{ .ProjectName }}:{{ .Tag }}
     ```
-    
+
     Supported architectures: `linux/amd64`, `linux/arm64`
   footer: |
-    **Full Changelog**: https://github.com/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}/compare/{{ .PreviousTag }}...{{ .Tag }}
+    **Full Changelog**: https://github.com/samzong/{{ .ProjectName }}/compare/{{ .PreviousTag }}...{{ .Tag }}
 
-brews:
+homebrew_casks:
   - name: gofs
-    
     repository:
-      owner: "{{ .Env.GITHUB_REPOSITORY_OWNER }}"
+      owner: "samzong"
       name: homebrew-tap
       branch: "update-gofs-{{ .Tag }}"
       pull_request:
@@ -164,21 +125,14 @@ brews:
         base:
           branch: main
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-    
-    homepage: "https://github.com/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}"
+    homepage: "https://github.com/samzong/{{ .ProjectName }}"
     description: "A lightweight, fast HTTP file server written in Go"
     license: "MIT"
-    directory: Formula
-    url_template: "https://github.com/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
-    
+    directory: Casks
+    url:
+      template: "https://github.com/samzong/{{ .ProjectName }}/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+    binary: gofs
     commit_author:
       name: github-actions[bot]
       email: 41898282+github-actions[bot]@users.noreply.github.com
-    
-    test: |
-      system "#{bin}/gofs", "--version"
-    
-    install: |
-      bin.install "gofs"
-    
     skip_upload: false
