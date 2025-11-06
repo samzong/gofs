@@ -63,6 +63,7 @@ endef
 GOIMPORTS_INSTALL := go install golang.org/x/tools/cmd/goimports@latest
 GOLANGCI_LINT_INSTALL := curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $$(go env GOPATH)/bin latest
 GOSEC_INSTALL := go install github.com/securego/gosec/v2/cmd/gosec@latest
+GORELEASER_INSTALL := go install github.com/goreleaser/goreleaser/v2@latest
 
 .PHONY: install-deps
 install-deps: ## Install all development dependencies
@@ -70,13 +71,14 @@ install-deps: ## Install all development dependencies
 	$(call ensure-go-tool,goimports,$(GOIMPORTS_INSTALL))
 	$(call ensure-external-tool,golangci-lint,$(GOLANGCI_LINT_INSTALL))
 	$(call ensure-go-tool,gosec,$(GOSEC_INSTALL))
+	$(call ensure-go-tool,goreleaser,$(GORELEASER_INSTALL))
 	@echo "$(GREEN)All dependencies installed$(NC)"
 
 .PHONY: check-deps
 check-deps: ## Check if all required dependencies are installed
 	@echo "$(BLUE)Checking development dependencies...$(NC)"
 	@missing_deps=""; \
-	for tool in goimports golangci-lint gosec; do \
+	for tool in goimports golangci-lint gosec goreleaser; do \
 		if ! command -v $$tool >/dev/null 2>&1; then \
 			missing_deps="$$missing_deps $$tool"; \
 		else \
@@ -127,6 +129,13 @@ sec: ## Run security analysis with gosec
 	gosec -fmt text -no-fail ./...
 	@echo "$(GREEN)Security analysis completed$(NC)"
 	@echo "$(CYAN)Report saved to: $(BUILD_DIR)/gosec-report.sarif$(NC)"
+
+.PHONY: goreleaser-check
+goreleaser-check: ## Check GoReleaser configuration
+	@echo "$(BLUE)Checking GoReleaser configuration...$(NC)"
+	$(call ensure-go-tool,goreleaser,$(GORELEASER_INSTALL))
+	@goreleaser check
+	@echo "$(GREEN)GoReleaser configuration check completed$(NC)"
 
 ##@ Build
 .PHONY: build
@@ -222,7 +231,7 @@ test-bench: ## Run benchmark tests
 
 ##@ Quality Assurance
 .PHONY: check
-check: fmt lint sec test ## Run complete quality checks (format + lint + security + test)
+check: fmt lint sec goreleaser-check test ## Run complete quality checks (format + lint + security + goreleaser + test)
 	@echo "$(GREEN)All quality checks passed!$(NC)"
 
 ##@ Setup
