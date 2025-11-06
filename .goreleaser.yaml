@@ -114,7 +114,7 @@ release:
   footer: |
     **Full Changelog**: https://github.com/samzong/{{ .ProjectName }}/compare/{{ .PreviousTag }}...{{ .Tag }}
 
-homebrew_casks:
+brews:
   - name: gofs
     repository:
       owner: "samzong"
@@ -128,11 +128,12 @@ homebrew_casks:
     homepage: "https://github.com/samzong/{{ .ProjectName }}"
     description: "A lightweight, fast HTTP file server written in Go"
     license: "MIT"
-    directory: Casks
-    url:
-      template: "https://github.com/samzong/{{ .ProjectName }}/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
-    binary: gofs
+    url_template: "https://github.com/samzong/{{ .ProjectName }}/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
     commit_author:
       name: github-actions[bot]
       email: 41898282+github-actions[bot]@users.noreply.github.com
+    test: |
+      system "#{bin}/gofs", "--version"
+    install: |
+      bin.install "gofs"
     skip_upload: false
