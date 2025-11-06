@@ -76,7 +76,8 @@ func NewWriter(w io.Writer, opts Options) *Writer {
 		},
 		bufferPool: &sync.Pool{
 			New: func() any {
-				return make([]byte, opts.BufferSize)
+				buf := make([]byte, opts.BufferSize)
+				return &buf
 			},
 		},
 	}
@@ -239,7 +240,7 @@ func (zw *Writer) getBuffer() []byte {
 		return make([]byte, zw.opts.BufferSize)
 	}
 
-	return zw.bufferPool.Get().([]byte)
+	return *zw.bufferPool.Get().(*[]byte)
 }
 
 func (zw *Writer) putBuffer(buf []byte) {
@@ -247,7 +248,8 @@ func (zw *Writer) putBuffer(buf []byte) {
 		return
 	}
 
-	zw.bufferPool.Put(buf)
+	buf = buf[:cap(buf)]
+	zw.bufferPool.Put(&buf)
 }
 
 func StreamFiles(w io.Writer, files []FileEntry, opts Options) error {
