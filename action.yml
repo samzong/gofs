@@ -46,6 +46,7 @@ runs:
   env:
     # Logger is env-driven only
     GOFS_LOG_LEVEL: ${{ inputs.log_level }}
+    GOFS_AUTH: ${{ inputs.auth }}
   args:
     - "--host"
     - ${{ inputs.host }}
@@ -57,4 +58,3 @@ runs:
     - "--enable-webdav=${{ inputs.enable_webdav }}"
     - "--dir"
     - ${{ inputs.dir }}
-
