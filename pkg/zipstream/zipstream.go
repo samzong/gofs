@@ -56,10 +56,11 @@ func (p *Progress) GetProgress() (processed, total int, bytes int64) {
 }
 
 type Writer struct {
-	opts     Options
-	writer   *zip.Writer
-	progress *Progress
-	written  int64
+	opts       Options
+	writer     *zip.Writer
+	progress   *Progress
+	written    int64
+	bufferPool *sync.Pool
 }
 
 func NewWriter(w io.Writer, opts Options) *Writer {
@@ -72,6 +73,11 @@ func NewWriter(w io.Writer, opts Options) *Writer {
 		writer: zip.NewWriter(w),
 		progress: &Progress{
 			StartTime: time.Now(),
+		},
+		bufferPool: &sync.Pool{
+			New: func() any {
+				return make([]byte, opts.BufferSize)
+			},
 		},
 	}
 }
@@ -131,7 +137,8 @@ func (zw *Writer) AddFile(entry FileEntry) error {
 	}
 	defer reader.Close()
 
-	buf := make([]byte, zw.opts.BufferSize)
+	buf := zw.getBuffer()
+	defer zw.putBuffer(buf)
 	var written int64
 
 	for {
@@ -225,6 +232,27 @@ func ensureTrailingSlash(path string) string {
 		return path + "/"
 	}
 	return path
+}
+
+func (zw *Writer) getBuffer() []byte {
+	if zw.bufferPool == nil {
+		return make([]byte, zw.opts.BufferSize)
+	}
+
+	buf := zw.bufferPool.Get()
+	if buf == nil {
+		return make([]byte, zw.opts.BufferSize)
+	}
+
+	return buf.([]byte)
+}
+
+func (zw *Writer) putBuffer(buf []byte) {
+	if zw.bufferPool == nil || buf == nil {
+		return
+	}
+
+	zw.bufferPool.Put(buf)
 }
 
 func StreamFiles(w io.Writer, files []FileEntry, opts Options) error {
