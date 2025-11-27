@@ -7,8 +7,8 @@ A lightweight, fast HTTP file server written in Go.
 [![Version](https://img.shields.io/github/release/samzong/gofs.svg)](https://github.com/samzong/gofs/releases/latest)
 [![Docker Pulls](https://img.shields.io/docker/pulls/samzong/gofs)](https://hub.docker.com/r/samzong/gofs)
 [![Downloads](https://img.shields.io/github/downloads/samzong/gofs/total.svg)](https://github.com/samzong/gofs/releases)
-[![Lines of Code](https://tokei.rs/b1/github/samzong/gofs)](https://github.com/samzong/gofs)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+<a href="https://deepwiki.com/samzong/gofs"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
 
 ## Why
 
