@@ -142,7 +142,7 @@ args:
   - "--host=0.0.0.0"      # Listen on all interfaces
   - "--port=8000"         # Port to serve on
   - "--dir=/data"         # Directory to serve
-  - "--theme=classic"     # UI theme (optional)
+  - "--theme=advanced"     # UI theme (optional)
   - "--show-hidden"       # Show hidden files (optional)
 ```
 

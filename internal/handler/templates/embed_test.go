@@ -25,12 +25,6 @@ func TestGetThemeCSS(t *testing.T) {
 			description: "Should return default CSS for empty theme",
 		},
 		{
-			name:        "classic_theme",
-			theme:       "classic",
-			expectedCSS: ClassicCSS,
-			description: "Should return classic CSS for 'classic' theme",
-		},
-		{
 			name:        "advanced_theme",
 			theme:       "advanced",
 			expectedCSS: AdvancedCSS,
@@ -73,7 +67,7 @@ func TestEmbeddedContent_NotEmpty(t *testing.T) {
 	}{
 		{"DirectoryHTML", DirectoryHTML, "Directory HTML template"},
 		{"StylesCSS", StylesCSS, "Base styles CSS"},
-		{"ClassicCSS", ClassicCSS, "Classic theme CSS"},
+
 		{"DefaultCSS", DefaultCSS, "Default theme CSS"},
 		{"AdvancedCSS", AdvancedCSS, "Advanced theme CSS"},
 		{"AdvancedJS", AdvancedJS, "Advanced theme JavaScript"},
@@ -150,14 +144,7 @@ func TestEmbeddedCSS_Structure(t *testing.T) {
 			},
 			desc: "Base styles should contain CSS syntax",
 		},
-		{
-			name:    "ClassicCSS",
-			content: ClassicCSS,
-			contains: []string{
-				"{", "}",
-			},
-			desc: "Classic CSS should contain CSS syntax",
-		},
+
 		{
 			name:    "DefaultCSS",
 			content: DefaultCSS,
@@ -292,7 +279,7 @@ func TestTemplate_Execution(t *testing.T) {
 
 func TestAllThemes_Coverage(t *testing.T) {
 	// Test that all themes defined in GetThemeCSS actually have content
-	themes := []string{"default", "classic", "advanced"}
+	themes := []string{"default", "advanced"}
 
 	for _, theme := range themes {
 		t.Run("theme_"+theme, func(t *testing.T) {
@@ -308,12 +295,6 @@ func TestAllThemes_Coverage(t *testing.T) {
 func BenchmarkGetThemeCSS_Default(b *testing.B) {
 	for range b.N {
 		GetThemeCSS("default")
-	}
-}
-
-func BenchmarkGetThemeCSS_Classic(b *testing.B) {
-	for range b.N {
-		GetThemeCSS("classic")
 	}
 }
 

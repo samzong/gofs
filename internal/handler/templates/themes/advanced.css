@@ -12,7 +12,7 @@
     --color-surface-hover: #f1f5f9;
     --color-border: #e2e8f0;
     --color-text: #1e293b;
-    --color-text-secondary: #64748b;
+    --color-text-secondary: #475569;
     
     --color-upload: #3b82f6;
     --color-selection: rgba(29, 78, 216, 0.1);
@@ -91,7 +91,7 @@ input {
 
 :root {
     --layout-mode: 'centered';
-    --container-transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --container-transition: all 0.25s ease-out;
 }
 
 body {
@@ -974,5 +974,15 @@ body {
     
     .file-checkbox {
         display: none;
+    }
+}
+
+/* Accessibility: Respect user motion preferences */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
     }
 }

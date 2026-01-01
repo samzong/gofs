@@ -122,7 +122,7 @@ func showHelp() {
 	fmt.Println("  -H, --show-hidden   Show hidden files and directories")
 	fmt.Println("      --host string   Server host address to bind to (default \"127.0.0.1\")")
 	fmt.Println("  -p, --port int      Server port number to listen on (default 8000)")
-	fmt.Println("      --theme string  UI theme: default, classic, advanced (default \"default\")")
+	fmt.Println("      --theme string  UI theme: default, advanced (default \"default\")")
 	fmt.Println("      --enable-webdav Enable WebDAV server on /dav path (read-only)")
 	fmt.Println("  -v, --version       Show version information and exit")
 	fmt.Println()

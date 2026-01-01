@@ -737,6 +737,8 @@
         };
         
         const notification = document.createElement('div');
+        notification.setAttribute('role', 'alert');
+        notification.setAttribute('aria-live', 'polite');
         notification.style.cssText = `
             position: fixed;
             top: 20px;

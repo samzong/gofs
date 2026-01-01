@@ -331,15 +331,6 @@ func TestFileHandler_DirectoryListing(t *testing.T) {
 			shouldNotContain: []string{".hidden"},
 		},
 		{
-			name:             "html_classic_theme",
-			showHidden:       false,
-			theme:            "classic",
-			accept:           "text/html",
-			expectedType:     "text/html",
-			shouldContain:    []string{"file1.txt", "file2.txt", "subdir"},
-			shouldNotContain: []string{".hidden"},
-		},
-		{
 			name:         "json_response",
 			showHidden:   false,
 			theme:        "default",

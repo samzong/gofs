@@ -315,7 +315,7 @@ affinity: {}
 
 - `GOFS_HOST` - Host to bind (default: 0.0.0.0)
 - `GOFS_PORT` - Port to bind (default: 8000)
-- `GOFS_THEME` - Theme to use (default, classic, advanced)
+- `GOFS_THEME` - Theme to use (default, advanced)
 - `GOFS_SHOW_HIDDEN` - Show hidden files (true/false)
 - `GOFS_AUTH` - Enable authentication (username:password)
 - `GOFS_ENABLE_WEBDAV` - Enable WebDAV server (true/false)
@@ -334,7 +334,7 @@ docker run -p 8000:8000 \
 
 - 🚀 **Fast & Lightweight** - Single binary, minimal resource usage
 - 📁 **Directory Browsing** - Clean, responsive directory listings
-- 🎨 **Multiple Themes** - Default, classic, and advanced themes
+- 🎨 **Multiple Themes** - Default and advanced themes
 - 📱 **Mobile Friendly** - Responsive design works on all devices
 - 🔐 **Authentication** - Optional HTTP basic authentication
 - 🌐 **WebDAV Support** - Read-only WebDAV server for file access

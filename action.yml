@@ -19,7 +19,7 @@ inputs:
     required: false
     default: "8000"
   theme:
-    description: "UI theme: default, classic, advanced."
+    description: "UI theme: default, advanced."
     required: false
     default: "default"
   show_hidden:

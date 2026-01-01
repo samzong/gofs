@@ -37,7 +37,7 @@ func TestNew(t *testing.T) {
 			port:        9000,
 			host:        "127.0.0.1",
 			dir:         tmpDir,
-			theme:       "classic",
+			theme:       "advanced",
 			showHidden:  true,
 			expectError: false,
 		},
@@ -60,13 +60,13 @@ func TestNew(t *testing.T) {
 			expectError: true,
 		},
 		{
-			name:        "invalid_theme",
+			name:        "invalid_theme_fallback_to_default",
 			port:        8000,
 			host:        "127.0.0.1",
 			dir:         tmpDir,
 			theme:       "invalid-theme",
 			showHidden:  false,
-			expectError: true,
+			expectError: false, // Now falls back to default instead of error
 		},
 		{
 			name:        "nonexistent_directory",
@@ -115,8 +115,8 @@ func TestNew(t *testing.T) {
 			}
 
 			expectedTheme := tc.theme
-			if expectedTheme == "" {
-				expectedTheme = "default"
+			if expectedTheme == "" || !validThemes[expectedTheme] {
+				expectedTheme = "default" // Invalid themes fall back to default
 			}
 			if cfg.Theme != expectedTheme {
 				t.Errorf("expected theme %q, got %q", expectedTheme, cfg.Theme)
@@ -204,14 +204,14 @@ func TestConfig_validate(t *testing.T) {
 			expectError: true,
 		},
 		{
-			name: "invalid_theme",
+			name: "invalid_theme_fallback",
 			config: &Config{
 				Port:  8000,
 				Host:  "localhost",
 				Dir:   tmpDir,
 				Theme: "invalid",
 			},
-			expectError: true,
+			expectError: false, // Falls back to default
 		},
 		{
 			name: "nonexistent_directory",

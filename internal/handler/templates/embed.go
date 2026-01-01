@@ -12,9 +12,6 @@ var DirectoryHTML string
 //go:embed styles.css
 var StylesCSS string
 
-//go:embed themes/classic.css
-var ClassicCSS string
-
 //go:embed themes/default.css
 var DefaultCSS string
 
@@ -29,8 +26,6 @@ var AdvancedHTML string
 
 func GetThemeCSS(theme string) string {
 	switch theme {
-	case "classic":
-		return ClassicCSS
 	case "advanced":
 		return AdvancedCSS
 	case "default", "":

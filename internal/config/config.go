@@ -10,7 +10,6 @@ import (
 
 var validThemes = map[string]bool{
 	"default":  true,
-	"classic":  true,
 	"advanced": true,
 }
 
@@ -103,7 +102,8 @@ func (c *Config) validate() error {
 	}
 
 	if !validThemes[c.Theme] {
-		return fmt.Errorf("invalid theme %q: supported themes are 'default', 'classic', and 'advanced'", c.Theme)
+		fmt.Fprintf(os.Stderr, "Warning: invalid theme %q, falling back to 'default'. Supported themes: default, advanced\n", c.Theme)
+		c.Theme = "default"
 	}
 
 	absDir, err := filepath.Abs(c.Dir)
