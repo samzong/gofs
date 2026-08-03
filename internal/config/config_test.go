@@ -24,8 +24,8 @@ func TestNew(t *testing.T) {
 		expectError bool
 	}{
 		{
-			name:        "valid_config_with_defaults",
-			port:        0,  // should default to 8000
+			name:        "valid_config_with_ephemeral_port",
+			port:        0,  // request an ephemeral port
 			host:        "", // should default to "0.0.0.0"
 			dir:         tmpDir,
 			theme:       "", // should default to "default"
@@ -95,9 +95,6 @@ func TestNew(t *testing.T) {
 
 			// Check defaults are applied
 			expectedPort := tc.port
-			if expectedPort == 0 {
-				expectedPort = 8000
-			}
 			if cfg.Port != expectedPort {
 				t.Errorf("expected port %d, got %d", expectedPort, cfg.Port)
 			}
@@ -133,8 +130,8 @@ func TestConfig_setDefaults(t *testing.T) {
 	c := &Config{}
 	c.setDefaults()
 
-	if c.Port != 8000 {
-		t.Errorf("expected default port 8000, got %d", c.Port)
+	if c.Port != 0 {
+		t.Errorf("expected port 0 to be preserved, got %d", c.Port)
 	}
 	if c.Host != "0.0.0.0" {
 		t.Errorf("expected default host '0.0.0.0', got %q", c.Host)

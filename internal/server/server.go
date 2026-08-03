@@ -147,6 +147,7 @@ func (s *Server) Start() error {
 		)
 		return fmt.Errorf("failed to listen on %s: %w", addr, err)
 	}
+	addr = listener.Addr().String()
 
 	s.logger.Info("Server listener created",
 		slog.String("address", addr),

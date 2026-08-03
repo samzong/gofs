@@ -65,13 +65,14 @@ jobs:
       uses: github/codeql-action/analyze@v3
 
     - name: Run Trivy vulnerability scanner on source code
-      uses: aquasecurity/trivy-action@0.28.0
+      uses: aquasecurity/trivy-action@v0.36.0
       with:
         scan-type: 'fs'
         scan-ref: '.'
         format: 'sarif'
         output: 'trivy-fs-results.sarif'
         severity: 'HIGH,CRITICAL'
+        limit-severities-for-sarif: true
         exit-code: '1'
         ignore-unfixed: true
 
