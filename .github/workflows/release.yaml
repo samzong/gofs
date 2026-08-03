@@ -78,7 +78,7 @@ jobs:
 
       - name: Run Trivy vulnerability scanner on source code
         if: steps.release.outcome == 'success'
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: "fs"
           scan-ref: "."
@@ -95,7 +95,7 @@ jobs:
 
       - name: Scan Docker images with Trivy
         if: steps.release.outcome == 'success'
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: "ghcr.io/${{ github.repository }}:${{ github.ref_name }}"
           format: "sarif"
