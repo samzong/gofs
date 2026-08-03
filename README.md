@@ -58,6 +58,9 @@ gofs
 # Change host/port
 gofs -host 0.0.0.0 -port 3000
 
+# Let the operating system select an available port (shown in startup logs)
+gofs -port 0
+
 # Enable auth
 gofs -auth user:password
 

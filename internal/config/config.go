@@ -76,9 +76,6 @@ func (c *Config) parseDirConfig(dirs []string) error {
 }
 
 func (c *Config) setDefaults() {
-	if c.Port == 0 {
-		c.Port = 8000
-	}
 	if c.Host == "" {
 		c.Host = "0.0.0.0"
 	}

@@ -1,11 +1,15 @@
 package server
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -224,6 +228,80 @@ func TestServerShutdown(t *testing.T) {
 	err = server.Shutdown(ctx)
 	if err != nil {
 		t.Errorf("Shutdown() with nil server returned error: %v", err)
+	}
+}
+
+func TestServerStartsOnRandomPort(t *testing.T) {
+	cfg, err := config.New(0, "127.0.0.1", t.TempDir(), "default", false, nil)
+	if err != nil {
+		t.Fatalf("Failed to create config: %v", err)
+	}
+	if cfg.Port != 0 {
+		t.Fatalf("expected configured port 0, got %d", cfg.Port)
+	}
+
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logs, nil))
+	srv := New(cfg, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}), nil, nil, logger)
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- srv.Start()
+	}()
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		_ = srv.Shutdown(ctx)
+	}()
+
+	var addr string
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		srv.mu.Lock()
+		if srv.listener != nil {
+			addr = srv.listener.Addr().String()
+		}
+		srv.mu.Unlock()
+		if addr != "" {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if addr == "" {
+		t.Fatal("server did not create a listener")
+	}
+	_, port, err := net.SplitHostPort(addr)
+	if err != nil || port == "0" {
+		t.Fatalf("listener address = %q, error = %v", addr, err)
+	}
+
+	client := &http.Client{Timeout: time.Second}
+	resp, err := client.Get("http://" + addr + "/healthz")
+	if err != nil {
+		t.Fatalf("health check: %v", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("health status = %d", resp.StatusCode)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		t.Fatalf("shutdown: %v", err)
+	}
+	select {
+	case err := <-errCh:
+		if !errors.Is(err, http.ErrServerClosed) {
+			t.Fatalf("Start() error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("server did not stop")
+	}
+	if !strings.Contains(logs.String(), `"address":"`+addr+`"`) {
+		t.Fatalf("listener address missing from logs: %s", logs.String())
 	}
 }
 

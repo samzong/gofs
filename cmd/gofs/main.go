@@ -28,6 +28,15 @@ var (
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "skill" {
+		err := runSkill(os.Args[2:], os.Stdin, os.Stdout, os.Stderr, stdinTTY(os.Stdin))
+		if err != nil && !errors.Is(err, flag.ErrHelp) {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	flags := parseFlags()
 
 	if flags.Help {
@@ -111,6 +120,7 @@ func showHelp() {
 	fmt.Println()
 	fmt.Println("Usage:")
 	fmt.Println("  gofs [options]")
+	fmt.Println("  gofs skill install [flags]")
 	fmt.Println()
 	fmt.Println("Options:")
 	fmt.Println("  -a, --auth string   Enable HTTP Basic Authentication with user:password format")
@@ -121,7 +131,7 @@ func showHelp() {
 	fmt.Println("  -h, --help          Show this help message and exit")
 	fmt.Println("  -H, --show-hidden   Show hidden files and directories")
 	fmt.Println("      --host string   Server host address to bind to (default \"127.0.0.1\")")
-	fmt.Println("  -p, --port int      Server port number to listen on (default 8000)")
+	fmt.Println("  -p, --port int      Server port number; 0 selects an available port (default 8000)")
 	fmt.Println("      --theme string  UI theme: default, advanced (default \"default\")")
 	fmt.Println("      --enable-webdav Enable WebDAV server on /dav path (read-only)")
 	fmt.Println("  -v, --version       Show version information and exit")
@@ -175,8 +185,8 @@ func parseFlags() *cmdFlags {
 	f := &cmdFlags{}
 	var dirs stringSlice
 
-	flag.IntVar(&f.Port, "port", getEnv("GOFS_PORT", 8000), "Server port")
-	flag.IntVar(&f.Port, "p", getEnv("GOFS_PORT", 8000), "Server port (shorthand)")
+	flag.IntVar(&f.Port, "port", getEnv("GOFS_PORT", 8000), "Server port; 0 selects an available port")
+	flag.IntVar(&f.Port, "p", getEnv("GOFS_PORT", 8000), "Server port; 0 selects an available port (shorthand)")
 	flag.StringVar(&f.Host, "host", getEnv("GOFS_HOST", "127.0.0.1"), "Server host")
 	flag.Var(&dirs, "d", "Directory mount (shorthand). Format: [path:]dir[:ro][:name]")
 	flag.Var(&dirs, "dir", "Directory mount. Format: [path:]dir[:ro][:name]")

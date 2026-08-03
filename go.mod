@@ -8,3 +8,5 @@ require (
 )
 
 require golang.org/x/text v0.31.0
+
+require github.com/lathe-cli/kitup/go v0.1.3
