@@ -1,7 +1,5 @@
-# gofs - Makefile
+.DEFAULT_GOAL := help
 
-##@ Project Configuration
-# ------------------------------------------------------------------------------
 PROJECT_NAME := gofs
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 BUILD_TIME := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -30,22 +28,21 @@ PLATFORMS := \
 DOCKER_IMAGE := $(PROJECT_NAME)
 DOCKER_PLATFORMS := linux/amd64,linux/arm64
 
-# Terminal colors for output formatting
+BOLD := \033[1m
 RED := \033[0;31m
 GREEN := \033[0;32m
 YELLOW := \033[0;33m
 BLUE := \033[0;34m
-PURPLE := \033[0;35m
 CYAN := \033[0;36m
-NC := \033[0m
+RESET := \033[0m
 
-##@ Dependencies Management
-# ------------------------------------------------------------------------------
+# ── Dependencies ─────────────────────────────────────────────────────────────
+
 # Function to check and install Go tools
 # Usage: $(call ensure-go-tool,tool-name,install-command)
 define ensure-go-tool
 	@if ! command -v $(1) >/dev/null 2>&1; then \
-		echo "$(YELLOW)Installing $(1)...$(NC)"; \
+		echo "$(YELLOW)Installing $(1)...$(RESET)"; \
 		$(2); \
 	fi
 endef
@@ -54,7 +51,7 @@ endef
 # Usage: $(call ensure-external-tool,tool-name,install-script)
 define ensure-external-tool
 	@if ! command -v $(1) >/dev/null 2>&1; then \
-		echo "$(YELLOW)Installing $(1)...$(NC)"; \
+		echo "$(YELLOW)Installing $(1)...$(RESET)"; \
 		$(2); \
 	fi
 endef
@@ -67,191 +64,193 @@ GORELEASER_INSTALL := go install github.com/goreleaser/goreleaser/v2@latest
 
 .PHONY: install-deps
 install-deps: ## Install all development dependencies
-	@echo "$(BLUE)Installing development dependencies...$(NC)"
+	@echo "$(BLUE)Installing development dependencies...$(RESET)"
 	$(call ensure-go-tool,goimports,$(GOIMPORTS_INSTALL))
 	$(call ensure-external-tool,golangci-lint,$(GOLANGCI_LINT_INSTALL))
 	$(call ensure-go-tool,gosec,$(GOSEC_INSTALL))
 	$(call ensure-go-tool,goreleaser,$(GORELEASER_INSTALL))
-	@echo "$(GREEN)All dependencies installed$(NC)"
+	@echo "$(GREEN)All dependencies installed$(RESET)"
 
 .PHONY: check-deps
 check-deps: ## Check if all required dependencies are installed
-	@echo "$(BLUE)Checking development dependencies...$(NC)"
+	@echo "$(BLUE)Checking development dependencies...$(RESET)"
 	@missing_deps=""; \
 	for tool in goimports golangci-lint gosec goreleaser; do \
 		if ! command -v $$tool >/dev/null 2>&1; then \
 			missing_deps="$$missing_deps $$tool"; \
 		else \
-			echo "$(GREEN)✓ $$tool is installed$(NC)"; \
+			echo "$(GREEN)✓ $$tool is installed$(RESET)"; \
 		fi; \
 	done; \
 	if [ -n "$$missing_deps" ]; then \
-		echo "$(RED)✗ Missing dependencies:$$missing_deps$(NC)"; \
-		echo "$(YELLOW)Run 'make install-deps' to install missing dependencies$(NC)"; \
+		echo "$(RED)✗ Missing dependencies:$$missing_deps$(RESET)"; \
+		echo "$(YELLOW)Run 'make install-deps' to install missing dependencies$(RESET)"; \
 		exit 1; \
 	else \
-		echo "$(GREEN)All dependencies are installed$(NC)"; \
+		echo "$(GREEN)All dependencies are installed$(RESET)"; \
 	fi
 
-##@ General
-.PHONY: help
-help: ## Display available commands
-	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+# ── Development ──────────────────────────────────────────────────────────────
 
-##@ Development
 .PHONY: fmt
 fmt: ## Format Go code with goimports
-	@echo "$(BLUE)Formatting Go code...$(NC)"
+	@echo "$(BLUE)Formatting Go code...$(RESET)"
 	$(call ensure-go-tool,goimports,$(GOIMPORTS_INSTALL))
 	@goimports -w -local $(PROJECT_NAME) .
-	@echo "$(GREEN)Code formatting completed$(NC)"
+	@echo "$(GREEN)Code formatting completed$(RESET)"
 
 .PHONY: lint
 lint: ## Run golangci-lint code analysis
-	@echo "$(BLUE)Running code analysis...$(NC)"
+	@echo "$(BLUE)Running code analysis...$(RESET)"
 	$(call ensure-external-tool,golangci-lint,$(GOLANGCI_LINT_INSTALL))
 	golangci-lint run
-	@echo "$(GREEN)Code analysis completed$(NC)"
+	@echo "$(GREEN)Code analysis completed$(RESET)"
 
 .PHONY: lint-fix
 lint-fix: ## Run golangci-lint with auto-fix
-	@echo "$(BLUE)Running code analysis with auto-fix...$(NC)"
+	@echo "$(BLUE)Running code analysis with auto-fix...$(RESET)"
 	$(call ensure-external-tool,golangci-lint,$(GOLANGCI_LINT_INSTALL))
 	golangci-lint run --fix
-	@echo "$(GREEN)Code analysis and fixes completed$(NC)"
+	@echo "$(GREEN)Code analysis and fixes completed$(RESET)"
 
 .PHONY: sec
 sec: ## Run security analysis with gosec
-	@echo "$(BLUE)Running security analysis...$(NC)"
+	@echo "$(BLUE)Running security analysis...$(RESET)"
 	$(call ensure-go-tool,gosec,$(GOSEC_INSTALL))
 	@mkdir -p $(BUILD_DIR)
 	gosec -fmt sarif -out $(BUILD_DIR)/gosec-report.sarif -no-fail ./...
 	gosec -fmt text -no-fail ./...
-	@echo "$(GREEN)Security analysis completed$(NC)"
-	@echo "$(CYAN)Report saved to: $(BUILD_DIR)/gosec-report.sarif$(NC)"
+	@echo "$(GREEN)Security analysis completed$(RESET)"
+	@echo "$(CYAN)Report saved to: $(BUILD_DIR)/gosec-report.sarif$(RESET)"
 
 .PHONY: goreleaser-check
 goreleaser-check: ## Check GoReleaser configuration
-	@echo "$(BLUE)Checking GoReleaser configuration...$(NC)"
+	@echo "$(BLUE)Checking GoReleaser configuration...$(RESET)"
 	$(call ensure-go-tool,goreleaser,$(GORELEASER_INSTALL))
 	@goreleaser check
-	@echo "$(GREEN)GoReleaser configuration check completed$(NC)"
+	@echo "$(GREEN)GoReleaser configuration check completed$(RESET)"
 
-##@ Build
+# ── Build ────────────────────────────────────────────────────────────────────
+
 .PHONY: build
 build: ## Build binary for current platform
-	@echo "$(BLUE)Building Go binary for $(HOST_OS)/$(HOST_ARCH)...$(NC)"
+	@echo "$(BLUE)Building Go binary for $(HOST_OS)/$(HOST_ARCH)...$(RESET)"
 	@mkdir -p $(BUILD_DIR)
 	@CGO_ENABLED=0 GOOS=$(HOST_OS) GOARCH=$(HOST_ARCH) go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)$(if $(filter windows,$(HOST_OS)),.exe,) ./cmd/gofs
-	@echo "$(GREEN)Build completed: $(BUILD_DIR)/$(BINARY_NAME)$(if $(filter windows,$(HOST_OS)),.exe,)$(NC)"
+	@echo "$(GREEN)Build completed: $(BUILD_DIR)/$(BINARY_NAME)$(if $(filter windows,$(HOST_OS)),.exe,)$(RESET)"
 
 .PHONY: build-linux
 build-linux: ## Build binary for Linux (amd64)
-	@echo "$(BLUE)Building Go binary for linux/amd64...$(NC)"
+	@echo "$(BLUE)Building Go binary for linux/amd64...$(RESET)"
 	@mkdir -p $(BUILD_DIR)
 	@CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64 ./cmd/gofs
-	@echo "$(GREEN)Build completed: $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64$(NC)"
+	@echo "$(GREEN)Build completed: $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64$(RESET)"
 
 .PHONY: build-linux-arm
 build-linux-arm: ## Build binary for Linux (arm64)
-	@echo "$(BLUE)Building Go binary for linux/arm64...$(NC)"
+	@echo "$(BLUE)Building Go binary for linux/arm64...$(RESET)"
 	@mkdir -p $(BUILD_DIR)
 	@CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-arm64 ./cmd/gofs
-	@echo "$(GREEN)Build completed: $(BUILD_DIR)/$(BINARY_NAME)-linux-arm64$(NC)"
+	@echo "$(GREEN)Build completed: $(BUILD_DIR)/$(BINARY_NAME)-linux-arm64$(RESET)"
 
 .PHONY: build-darwin
 build-darwin: ## Build binary for macOS (amd64)
-	@echo "$(BLUE)Building Go binary for darwin/amd64...$(NC)"
+	@echo "$(BLUE)Building Go binary for darwin/amd64...$(RESET)"
 	@mkdir -p $(BUILD_DIR)
 	@CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-amd64 ./cmd/gofs
-	@echo "$(GREEN)Build completed: $(BUILD_DIR)/$(BINARY_NAME)-darwin-amd64$(NC)"
+	@echo "$(GREEN)Build completed: $(BUILD_DIR)/$(BINARY_NAME)-darwin-amd64$(RESET)"
 
 .PHONY: build-darwin-arm
 build-darwin-arm: ## Build binary for macOS (arm64/M1)
-	@echo "$(BLUE)Building Go binary for darwin/arm64...$(NC)"
+	@echo "$(BLUE)Building Go binary for darwin/arm64...$(RESET)"
 	@mkdir -p $(BUILD_DIR)
 	@CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-arm64 ./cmd/gofs
-	@echo "$(GREEN)Build completed: $(BUILD_DIR)/$(BINARY_NAME)-darwin-arm64$(NC)"
+	@echo "$(GREEN)Build completed: $(BUILD_DIR)/$(BINARY_NAME)-darwin-arm64$(RESET)"
 
 .PHONY: build-windows
 build-windows: ## Build binary for Windows (amd64)
-	@echo "$(BLUE)Building Go binary for windows/amd64...$(NC)"
+	@echo "$(BLUE)Building Go binary for windows/amd64...$(RESET)"
 	@mkdir -p $(BUILD_DIR)
 	@CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-windows-amd64.exe ./cmd/gofs
-	@echo "$(GREEN)Build completed: $(BUILD_DIR)/$(BINARY_NAME)-windows-amd64.exe$(NC)"
+	@echo "$(GREEN)Build completed: $(BUILD_DIR)/$(BINARY_NAME)-windows-amd64.exe$(RESET)"
 
 .PHONY: build-all
 build-all: ## Build binaries for all supported platforms
-	@echo "$(BLUE)Building Go binaries for all platforms...$(NC)"
+	@echo "$(BLUE)Building Go binaries for all platforms...$(RESET)"
 	@mkdir -p $(BUILD_DIR)
 	@for platform in $(PLATFORMS); do \
 		os=$$(echo $$platform | cut -d'/' -f1); \
 		arch=$$(echo $$platform | cut -d'/' -f2); \
 		ext=""; \
 		if [ "$$os" = "windows" ]; then ext=".exe"; fi; \
-		echo "$(CYAN)Building for $$os/$$arch...$(NC)"; \
+		echo "$(CYAN)Building for $$os/$$arch...$(RESET)"; \
 		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-$$os-$$arch$$ext ./cmd/gofs; \
 		if [ $$? -eq 0 ]; then \
-			echo "$(GREEN)✓ Built $(BUILD_DIR)/$(BINARY_NAME)-$$os-$$arch$$ext$(NC)"; \
+			echo "$(GREEN)✓ Built $(BUILD_DIR)/$(BINARY_NAME)-$$os-$$arch$$ext$(RESET)"; \
 		else \
-			echo "$(RED)✗ Failed to build for $$os/$$arch$(NC)"; \
+			echo "$(RED)✗ Failed to build for $$os/$$arch$(RESET)"; \
 		fi; \
 	done
-	@echo "$(GREEN)All builds completed!$(NC)"
-	@echo "$(BLUE)Built binaries:$(NC)"
+	@echo "$(GREEN)All builds completed!$(RESET)"
+	@echo "$(BLUE)Built binaries:$(RESET)"
 	@ls -la $(BUILD_DIR)/
 
-##@ Testing
+# ── Testing ──────────────────────────────────────────────────────────────────
+
 .PHONY: test
 test: ## Run all tests
-	@echo "$(BLUE)Running tests...$(NC)"
+	@echo "$(BLUE)Running tests...$(RESET)"
 	@go test -v ./...
-	@echo "$(GREEN)All tests passed!$(NC)"
+	@echo "$(GREEN)All tests passed!$(RESET)"
 
 .PHONY: test-coverage
 test-coverage: ## Run tests with coverage report
-	@echo "$(BLUE)Running tests with coverage...$(NC)"
+	@echo "$(BLUE)Running tests with coverage...$(RESET)"
 	@mkdir -p $(BUILD_DIR)
 	@go test -v -coverprofile=$(BUILD_DIR)/coverage.out ./...
 	@go tool cover -html=$(BUILD_DIR)/coverage.out -o $(BUILD_DIR)/coverage.html
-	@echo "$(GREEN)Coverage report generated: $(BUILD_DIR)/coverage.html$(NC)"
+	@echo "$(GREEN)Coverage report generated: $(BUILD_DIR)/coverage.html$(RESET)"
 	@go tool cover -func=$(BUILD_DIR)/coverage.out | tail -1
 
 .PHONY: test-race
 test-race: ## Run tests with race detection
-	@echo "$(BLUE)Running tests with race detection...$(NC)"
+	@echo "$(BLUE)Running tests with race detection...$(RESET)"
 	@go test -race -v ./...
-	@echo "$(GREEN)Race detection tests passed!$(NC)"
+	@echo "$(GREEN)Race detection tests passed!$(RESET)"
 
 .PHONY: test-bench
 test-bench: ## Run benchmark tests
-	@echo "$(BLUE)Running benchmark tests...$(NC)"
+	@echo "$(BLUE)Running benchmark tests...$(RESET)"
 	@go test -bench=. -benchmem ./...
-	@echo "$(GREEN)Benchmark tests completed!$(NC)"
+	@echo "$(GREEN)Benchmark tests completed!$(RESET)"
 
-##@ Quality Assurance
+# ── Quality Assurance ────────────────────────────────────────────────────────
+
 .PHONY: check
 check: fmt lint sec goreleaser-check test ## Run complete quality checks (format + lint + security + goreleaser + test)
-	@echo "$(GREEN)All quality checks passed!$(NC)"
+	@echo "$(GREEN)All quality checks passed!$(RESET)"
 
-##@ Setup
+# ── Setup ────────────────────────────────────────────────────────────────────
+
 .PHONY: install-hooks
 install-hooks: ## Install Git pre-commit hooks
-	@echo "$(BLUE)Installing Git hooks...$(NC)"
+	@echo "$(BLUE)Installing Git hooks...$(RESET)"
 	@./scripts/install-hooks.sh
-	@echo "$(GREEN)Git hooks installation completed$(NC)"
+	@echo "$(GREEN)Git hooks installation completed$(RESET)"
 
-##@ Cleanup
+# ── Cleanup ──────────────────────────────────────────────────────────────────
+
 .PHONY: clean
 clean: ## Clean build artifacts and test outputs
-	@echo "$(BLUE)Cleaning build artifacts and test outputs...$(NC)"
+	@echo "$(BLUE)Cleaning build artifacts and test outputs...$(RESET)"
 	@rm -rf $(BUILD_DIR) gofs dist
-	@echo "$(GREEN)Cleanup completed$(NC)"
+	@echo "$(GREEN)Cleanup completed$(RESET)"
 
-##@ Docker
+# ── Docker ───────────────────────────────────────────────────────────────────
+
 .PHONY: docker-build
 docker-build: ## Build Docker image for local development
-	@echo "$(BLUE)Building Docker image $(DOCKER_IMAGE):$(VERSION)...$(NC)"
+	@echo "$(BLUE)Building Docker image $(DOCKER_IMAGE):$(VERSION)...$(RESET)"
 	@docker build \
 		--build-arg VERSION=$(VERSION) \
 		--build-arg BUILD_TIME=$(BUILD_TIME) \
@@ -259,13 +258,13 @@ docker-build: ## Build Docker image for local development
 		--tag $(DOCKER_IMAGE):$(VERSION) \
 		--tag $(DOCKER_IMAGE):latest \
 		.
-	@echo "$(GREEN)Docker image built successfully$(NC)"
+	@echo "$(GREEN)Docker image built successfully$(RESET)"
 
 .PHONY: docker-build-multiarch
 docker-build-multiarch: ## Build multi-architecture Docker image for local testing
-	@echo "$(BLUE)Building multi-architecture Docker image...$(NC)"
+	@echo "$(BLUE)Building multi-architecture Docker image...$(RESET)"
 	@if ! docker buildx ls | grep -q "multiarch-builder"; then \
-		echo "$(YELLOW)Creating buildx builder instance...$(NC)"; \
+		echo "$(YELLOW)Creating buildx builder instance...$(RESET)"; \
 		docker buildx create --name multiarch-builder --driver docker-container --bootstrap --use; \
 	else \
 		docker buildx use multiarch-builder; \
@@ -279,22 +278,30 @@ docker-build-multiarch: ## Build multi-architecture Docker image for local testi
 		--tag $(DOCKER_IMAGE):latest \
 		--load \
 		.
-	@echo "$(GREEN)Multi-architecture Docker image built successfully$(NC)"
+	@echo "$(GREEN)Multi-architecture Docker image built successfully$(RESET)"
 
 .PHONY: docker-run
 docker-run: ## Run Docker container locally for testing
-	@echo "$(BLUE)Running Docker container...$(NC)"
+	@echo "$(BLUE)Running Docker container...$(RESET)"
 	@docker run --rm -it \
 		-p 8000:8000 \
 		-v $(PWD):/data:ro \
 		$(DOCKER_IMAGE):latest
-	@echo "$(GREEN)Docker container stopped$(NC)"
+	@echo "$(GREEN)Docker container stopped$(RESET)"
 
 .PHONY: docker-clean
 docker-clean: ## Clean local Docker images and build cache
-	@echo "$(BLUE)Cleaning Docker images and build cache...$(NC)"
+	@echo "$(BLUE)Cleaning Docker images and build cache...$(RESET)"
 	@docker images $(DOCKER_IMAGE) -q | xargs -r docker rmi -f
 	@docker buildx prune -f
-	@echo "$(GREEN)Docker cleanup completed$(NC)"
+	@echo "$(GREEN)Docker cleanup completed$(RESET)"
 
-.DEFAULT_GOAL := help
+# ── Help ─────────────────────────────────────────────────────────────────────
+
+.PHONY: help
+
+help: ## Show available targets
+	@awk 'BEGIN {FS = ":.*## "; printf "\n$(BOLD)gofs$(RESET) — lightweight HTTP file server\n"} \
+		/^# ── / {n = $$0; gsub(/(^# ── | (─)+$$)/, "", n); printf "\n$(BOLD)%s$(RESET)\n", n} \
+		/^[a-zA-Z0-9_-]+:.*## / {printf "  $(CYAN)make %-23s$(RESET) %s\n", $$1, $$2} \
+		END {printf "\n"}' $(MAKEFILE_LIST)
