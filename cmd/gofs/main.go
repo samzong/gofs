@@ -120,7 +120,7 @@ func showHelp() {
 	fmt.Println()
 	fmt.Println("Usage:")
 	fmt.Println("  gofs [options]")
-	fmt.Println("  gofs skill install [flags]")
+	fmt.Println("  gofs skill <install|status|uninstall> [flags]")
 	fmt.Println()
 	fmt.Println("Options:")
 	fmt.Println("  -a, --auth string   Enable HTTP Basic Authentication with user:password format")

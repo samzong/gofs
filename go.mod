@@ -9,4 +9,4 @@ require (
 
 require golang.org/x/text v0.41.0
 
-require github.com/lathe-cli/kitup/go v0.1.3
+require github.com/lathe-cli/kitup/go v0.1.4

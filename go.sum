@@ -1,5 +1,5 @@
-github.com/lathe-cli/kitup/go v0.1.3 h1:7eEW8mDr5MbXFaTwr2dlnH8ebg+3Kmhj2/j4d9YfQNQ=
-github.com/lathe-cli/kitup/go v0.1.3/go.mod h1:dZgJDmFRKjaFBZyaP1qlzOB9IEafnf1/ai4KX4hMA4c=
+github.com/lathe-cli/kitup/go v0.1.4 h1:WfA/EBSllkVGWAUIA91R5VzhjN21J1Ocr2/hxQNhOPU=
+github.com/lathe-cli/kitup/go v0.1.4/go.mod h1:dZgJDmFRKjaFBZyaP1qlzOB9IEafnf1/ai4KX4hMA4c=
 golang.org/x/crypto v0.56.0 h1:GUh5Ii4J5jtcseSMiRqr1jXCNHoxjeV9Fmekc2oLy6Y=
 golang.org/x/crypto v0.56.0/go.mod h1:OMW5y6CY9l38uPLmxU6l6pwcXp1obtLo3e6gT7gQR2I=
 golang.org/x/net v0.57.0 h1:K5+3DljvIuDG9/Jv9rvyMywYNFCQ9RSUY6OOTTkT+tE=
