@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/samzong/gofs/internal"
 	"github.com/samzong/gofs/internal/config"
 	"github.com/samzong/gofs/internal/filesystem"
 	"github.com/samzong/gofs/internal/handler"
@@ -259,7 +260,10 @@ func createFileHandler(cfg *config.Config, logger *slog.Logger) http.Handler {
 		return handler.NewMultiDir(cfg.Dirs, cfg, logger)
 	}
 
-	fs := filesystem.NewLocal(getRootDir(cfg), cfg.ShowHidden)
+	var fs internal.FileSystem = filesystem.NewLocal(getRootDir(cfg), cfg.ShowHidden)
+	if len(cfg.Dirs) > 0 && cfg.Dirs[0].Readonly {
+		fs = filesystem.NewReadonly(fs)
+	}
 	if cfg.Theme == "advanced" {
 		return handler.NewAdvancedFile(fs, cfg)
 	}
