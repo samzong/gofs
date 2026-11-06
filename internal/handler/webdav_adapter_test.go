@@ -387,38 +387,6 @@ func TestWebDAVAdapter_Stat(t *testing.T) {
 	}
 }
 
-func TestWebDAVFile_Seek(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "webdav_adapter_test")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
-
-	testFile := tempDir + "/test.txt"
-	if err := os.WriteFile(testFile, []byte("test content"), 0644); err != nil {
-		t.Fatalf("Failed to create test file: %v", err)
-	}
-
-	fs := filesystem.NewLocal(tempDir, false)
-	adapter := NewWebDAVAdapter(fs).(*webDAVAdapter)
-	ctx := context.Background()
-
-	file, err := adapter.OpenFile(ctx, "/test.txt", os.O_RDONLY, 0644)
-	if err != nil {
-		t.Fatalf("Failed to open file: %v", err)
-	}
-	defer file.Close()
-
-	// Test seek (should fail)
-	offset, err := file.Seek(0, io.SeekStart)
-	if err == nil {
-		t.Error("Expected seek to fail")
-	}
-	if offset != 0 {
-		t.Errorf("Expected offset 0, got %d", offset)
-	}
-}
-
 func TestWebDAVDir_Operations(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "webdav_adapter_test")
 	if err != nil {

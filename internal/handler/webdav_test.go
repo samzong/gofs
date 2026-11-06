@@ -1,11 +1,13 @@
 package handler
 
 import (
+	"encoding/xml"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -145,82 +147,121 @@ func TestWebDAV_OPTIONS(t *testing.T) {
 }
 
 func TestWebDAV_PROPFIND(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "webdav_test")
+	root := t.TempDir()
+	for _, name := range []string{"public.txt", "unknown"} {
+		if err := os.WriteFile(root+"/"+name, []byte("hi\n"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Mkdir(root+"/sub", 0755); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.New(8080, "localhost", root, "default", false, nil)
 	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
+		t.Fatal(err)
 	}
-	defer os.RemoveAll(tempDir)
-
-	// Create test file
-	testFile := tempDir + "/test.txt"
-	if err := os.WriteFile(testFile, []byte("test content"), 0644); err != nil {
-		t.Fatalf("Failed to create test file: %v", err)
-	}
-
-	cfg, err := config.New(8080, "localhost", tempDir, "default", false, nil)
-	if err != nil {
-		t.Fatalf("Failed to create config: %v", err)
-	}
-
-	fs := filesystem.NewLocal(tempDir, false)
-	logger := slog.Default()
-	webdavHandler := NewWebDAV(fs, cfg, logger)
-
-	tests := []struct {
-		name        string
-		path        string
-		depthHeader string
-		expectError bool
+	h := NewWebDAV(filesystem.NewLocal(root, false), cfg, slog.Default())
+	for _, tc := range []struct {
+		path  string
+		depth string
 	}{
-		{
-			name:        "PROPFIND root directory",
-			path:        "/dav/",
-			depthHeader: "1",
-			expectError: false,
-		},
-		{
-			name:        "PROPFIND specific file",
-			path:        "/dav/test.txt",
-			depthHeader: "0",
-			expectError: false,
-		},
-		{
-			name:        "PROPFIND with infinity depth (should be limited)",
-			path:        "/dav/",
-			depthHeader: "infinity",
-			expectError: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest("PROPFIND", tt.path, nil)
-			req.Header.Set("Depth", tt.depthHeader)
+		{"/dav/", "0"},
+		{"/dav/", "1"},
+		{"/dav/", "infinity"},
+		{"/dav/unknown", "0"},
+	} {
+		t.Run(tc.path+tc.depth, func(t *testing.T) {
+			req := httptest.NewRequest("PROPFIND", tc.path, nil)
+			req.Header.Set("Depth", tc.depth)
 			w := httptest.NewRecorder()
-
-			webdavHandler.ServeHTTP(w, req)
-
-			// Check that infinity depth was limited to 1
-			if tt.depthHeader == "infinity" && req.Header.Get("Depth") != "1" {
-				t.Errorf("Expected Depth header to be limited to '1', got %q",
-					req.Header.Get("Depth"))
+			h.ServeHTTP(w, req)
+			if w.Code != http.StatusMultiStatus {
+				t.Fatalf("PROPFIND status = %d, body = %q", w.Code, w.Body.String())
 			}
-
-			// Check WebDAV headers are set
-			if w.Header().Get("DAV") != "1, 2" {
-				t.Errorf("Expected DAV header '1, 2', got %q", w.Header().Get("DAV"))
+			var result struct {
+				XMLName xml.Name `xml:"DAV: multistatus"`
+				Entries []struct {
+					Href string `xml:"DAV: href"`
+				} `xml:"DAV: response"`
 			}
-
-			if w.Header().Get("MS-Author-Via") != "DAV" {
-				t.Errorf("Expected MS-Author-Via header 'DAV', got %q",
-					w.Header().Get("MS-Author-Via"))
+			decoder := xml.NewDecoder(w.Body)
+			if err := decoder.Decode(&result); err != nil {
+				t.Fatalf("Invalid multistatus: %v", err)
 			}
-
-			// PROPFIND should return success for valid paths
-			if !tt.expectError && w.Code >= 400 {
-				t.Errorf("Expected success status, got %d", w.Code)
+			for {
+				token, err := decoder.Token()
+				if err == io.EOF {
+					break
+				}
+				if err != nil {
+					t.Fatalf("Invalid trailing XML: %v", err)
+				}
+				if text, ok := token.(xml.CharData); !ok || strings.TrimSpace(string(text)) != "" {
+					t.Fatalf("Unexpected trailing XML: %v", token)
+				}
+			}
+			var hrefs []string
+			for _, entry := range result.Entries {
+				hrefs = append(hrefs, entry.Href)
+			}
+			slices.Sort(hrefs)
+			want := []string{tc.path}
+			if tc.depth != "0" {
+				want = append(want, "/dav/public.txt", "/dav/sub/", "/dav/unknown")
+			}
+			if !slices.Equal(hrefs, want) {
+				t.Errorf("PROPFIND hrefs = %v, want %v", hrefs, want)
+			}
+			if tc.depth == "infinity" && req.Header.Get("Depth") != "1" {
+				t.Error("Infinite depth was not limited to 1")
 			}
 		})
+	}
+}
+
+func TestWebDAV_PROPFINDSkipsBadEntries(t *testing.T) {
+	root := t.TempDir()
+	outside := t.TempDir() + "/private.txt"
+	if err := os.WriteFile(outside, []byte("private"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"aaa.txt", "zzz.txt"} {
+		if err := os.WriteFile(root+"/"+name, []byte("hi\n"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for name, target := range map[string]string{"broken": root + "/missing", "outside": outside} {
+		if err := os.Symlink(target, root+"/"+name); err != nil {
+			t.Skipf("Cannot create symlink: %v", err)
+		}
+	}
+	cfg, err := config.New(8080, "localhost", root, "default", false, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := NewWebDAV(filesystem.NewLocal(root, false), cfg, slog.Default())
+	req := httptest.NewRequest("PROPFIND", "/dav/", nil)
+	req.Header.Set("Depth", "1")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusMultiStatus {
+		t.Fatalf("PROPFIND status = %d", w.Code)
+	}
+	var result struct {
+		XMLName xml.Name `xml:"DAV: multistatus"`
+		Hrefs   []string `xml:"response>href"`
+	}
+	decoder := xml.NewDecoder(strings.NewReader(strings.TrimSpace(w.Body.String())))
+	if err := decoder.Decode(&result); err != nil {
+		t.Fatal(err)
+	}
+	if token, err := decoder.Token(); err != io.EOF {
+		t.Fatalf("Trailing response data: token=%v, error=%v", token, err)
+	}
+	slices.Sort(result.Hrefs)
+	want := []string{"/dav/", "/dav/aaa.txt", "/dav/zzz.txt"}
+	if !slices.Equal(result.Hrefs, want) {
+		t.Errorf("PROPFIND hrefs = %v, want %v", result.Hrefs, want)
 	}
 }
 
@@ -260,23 +301,28 @@ func setupWebDAVTestWithFile(t *testing.T) (*WebDAV, func()) {
 }
 
 func TestWebDAV_GET(t *testing.T) {
-	webdavHandler, cleanup := setupWebDAVTestWithFile(t)
+	h, cleanup := setupWebDAVTestWithFile(t)
 	defer cleanup()
-
-	req := httptest.NewRequest("GET", "/dav/test.txt", nil)
-	w := httptest.NewRecorder()
-
-	webdavHandler.ServeHTTP(w, req)
-
-	// Note: GET operations may fail due to seek limitations in our WebDAV adapter
-	// This is expected behavior as our implementation is read-only and simplified
-	if w.Code != http.StatusOK && w.Code != http.StatusInternalServerError {
-		t.Errorf("Expected status %d or %d, got %d", http.StatusOK, http.StatusInternalServerError, w.Code)
-	}
-
-	// Check WebDAV headers are set regardless of content success
-	if w.Header().Get("DAV") != "1, 2" {
-		t.Errorf("Expected DAV header '1, 2', got %q", w.Header().Get("DAV"))
+	for _, tc := range []struct {
+		rangeHeader string
+		status      int
+		body        string
+	}{
+		{"", http.StatusOK, "Hello, WebDAV world!"},
+		{"bytes=7-12", http.StatusPartialContent, "WebDAV"},
+	} {
+		t.Run(tc.rangeHeader, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/dav/test.txt", nil)
+			req.Header.Set("Range", tc.rangeHeader)
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, req)
+			if w.Code != tc.status || w.Body.String() != tc.body {
+				t.Errorf("GET = (%d, %q), want (%d, %q)", w.Code, w.Body.String(), tc.status, tc.body)
+			}
+			if tc.rangeHeader != "" && w.Header().Get("Content-Range") != "bytes 7-12/20" {
+				t.Errorf("Content-Range = %q", w.Header().Get("Content-Range"))
+			}
+		})
 	}
 }
 
@@ -289,9 +335,8 @@ func TestWebDAV_HEAD(t *testing.T) {
 
 	webdavHandler.ServeHTTP(w, req)
 
-	// Note: HEAD operations may fail due to seek limitations in our WebDAV adapter
-	if w.Code != http.StatusOK && w.Code != http.StatusInternalServerError {
-		t.Errorf("Expected status %d or %d, got %d", http.StatusOK, http.StatusInternalServerError, w.Code)
+	if w.Code != http.StatusOK || w.Body.Len() != 0 || w.Header().Get("Content-Length") != "20" {
+		t.Errorf("HEAD = (%d, %q, %q)", w.Code, w.Body.String(), w.Header().Get("Content-Length"))
 	}
 
 	// Check WebDAV headers are set
@@ -493,9 +538,8 @@ func TestWebDAV_ConcurrentRequests(t *testing.T) {
 			w := httptest.NewRecorder()
 			webdavHandler.ServeHTTP(w, req)
 
-			// Note: GET operations may fail due to seek limitations
-			if w.Code != http.StatusOK && w.Code != http.StatusInternalServerError {
-				t.Errorf("Concurrent request %d: expected status 200 or 500, got %d", id, w.Code)
+			if w.Code != http.StatusOK {
+				t.Errorf("Concurrent request %d: expected status 200, got %d", id, w.Code)
 			}
 			done <- true
 		}(i)
