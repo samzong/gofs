@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -30,8 +31,8 @@ func (fs *Local) Root() string {
 }
 
 func (fs *Local) Open(name string) (io.ReadCloser, error) {
-	fullPath := fs.getFullPath(name)
-	if fullPath == "" {
+	rel := fs.relPath(name)
+	if rel == "" {
 		return nil, &internal.APIError{
 			Code:    "INVALID_PATH",
 			Message: "Invalid file path",
@@ -39,12 +40,11 @@ func (fs *Local) Open(name string) (io.ReadCloser, error) {
 		}
 	}
 
-	if err := fs.verifySymlinkSafety(fullPath); err != nil {
-		return nil, err
-	}
-
-	// #nosec G304 - path is validated by fileutil.SafePath
-	file, err := os.Open(fullPath)
+	var file *os.File
+	err := fs.inRoot(func(root *os.Root) (err error) {
+		file, err = root.Open(rel)
+		return err
+	})
 	if err != nil {
 		return nil, &internal.APIError{
 			Code:    "FILE_ACCESS_ERROR",
@@ -57,8 +57,8 @@ func (fs *Local) Open(name string) (io.ReadCloser, error) {
 
 // Stat returns file information for the given path.
 func (fs *Local) Stat(name string) (internal.FileInfo, error) {
-	fullPath := fs.getFullPath(name)
-	if fullPath == "" {
+	rel := fs.relPath(name)
+	if rel == "" {
 		return nil, &internal.APIError{
 			Code:    "INVALID_PATH",
 			Message: "Invalid file path",
@@ -66,12 +66,11 @@ func (fs *Local) Stat(name string) (internal.FileInfo, error) {
 		}
 	}
 
-	// Verify symlink safety
-	if err := fs.verifySymlinkSafety(fullPath); err != nil {
-		return nil, err
-	}
-
-	info, err := os.Stat(fullPath)
+	var info os.FileInfo
+	err := fs.inRoot(func(root *os.Root) (err error) {
+		info, err = root.Stat(rel)
+		return err
+	})
 	if err != nil {
 		return nil, &internal.APIError{
 			Code:    "FILE_STAT_ERROR",
@@ -85,8 +84,8 @@ func (fs *Local) Stat(name string) (internal.FileInfo, error) {
 
 // ReadDir reads the directory and returns a list of directory entries.
 func (fs *Local) ReadDir(name string) ([]internal.FileInfo, error) {
-	fullPath := fs.getFullPath(name)
-	if fullPath == "" {
+	rel := fs.relPath(name)
+	if rel == "" {
 		return nil, &internal.APIError{
 			Code:    "INVALID_PATH",
 			Message: "Invalid directory path",
@@ -94,12 +93,36 @@ func (fs *Local) ReadDir(name string) ([]internal.FileInfo, error) {
 		}
 	}
 
-	// Verify symlink safety
-	if err := fs.verifySymlinkSafety(fullPath); err != nil {
-		return nil, err
-	}
+	var result []internal.FileInfo
+	err := fs.inRoot(func(root *os.Root) error {
+		dir, err := root.Open(rel)
+		if err != nil {
+			return err
+		}
+		defer dir.Close()
 
-	entries, err := os.ReadDir(fullPath)
+		entries, err := dir.ReadDir(-1)
+		if err != nil {
+			return err
+		}
+		slices.SortFunc(entries, func(a, b os.DirEntry) int {
+			return strings.Compare(a.Name(), b.Name())
+		})
+
+		result = make([]internal.FileInfo, 0, len(entries))
+		for _, entry := range entries {
+			if !fs.showHidden && isHidden(entry.Name()) {
+				continue
+			}
+
+			info, err := root.Lstat(filepath.Join(rel, entry.Name()))
+			if err != nil {
+				continue
+			}
+			result = append(result, &localFileInfo{FileInfo: info})
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, &internal.APIError{
 			Code:    "DIRECTORY_READ_ERROR",
@@ -108,137 +131,68 @@ func (fs *Local) ReadDir(name string) ([]internal.FileInfo, error) {
 		}
 	}
 
-	result := make([]internal.FileInfo, 0, len(entries))
-	for _, entry := range entries {
-		// Filter hidden files if showHidden is false
-		if !fs.showHidden && isHidden(entry.Name()) {
-			continue
-		}
-
-		info, err := entry.Info()
-		if err != nil {
-			continue // Skip files we can't stat
-		}
-		result = append(result, &localFileInfo{FileInfo: info})
-	}
-
 	return result, nil
 }
 
 // Create creates or truncates the named file for writing.
 // The returned io.WriteCloser must be closed after use.
 func (fs *Local) Create(name string) (io.WriteCloser, error) {
-	path := fs.getFullPath(name)
-	if path == "" {
+	rel := fs.relPath(name)
+	if rel == "" {
 		return nil, fmt.Errorf("invalid path: %s", name)
 	}
 
-	// Security: Path is validated through multi-layer protection:
-	// 1. Handler layer: fileutil.SafePath() validates user input
-	// 2. getFullPath(): Additional fileutil.SafePath() + filepath.Rel() validation
-	// 3. Final check: Ensures path stays within root directory bounds
-	file, err := os.Create(path) // #nosec G304 - Path validated through secure getFullPath chain
+	var file *os.File
+	err := fs.inRoot(func(root *os.Root) (err error) {
+		file, err = root.Create(rel)
+		return err
+	})
 	if err != nil {
-		return nil, fmt.Errorf("creating file %q: %w", path, err)
+		return nil, fmt.Errorf("creating file %q: %w", name, err)
 	}
 	return file, nil
 }
 
 // Mkdir creates a directory with the specified name and permission.
 func (fs *Local) Mkdir(name string, perm os.FileMode) error {
-	path := fs.getFullPath(name)
-	if path == "" {
+	rel := fs.relPath(name)
+	if rel == "" {
 		return fmt.Errorf("invalid path: %s", name)
 	}
 
-	if err := os.Mkdir(path, perm); err != nil {
-		return fmt.Errorf("creating directory %q: %w", path, err)
+	if err := fs.inRoot(func(root *os.Root) error { return root.Mkdir(rel, perm) }); err != nil {
+		return fmt.Errorf("creating directory %q: %w", name, err)
 	}
 	return nil
 }
 
 // Remove removes the named file or empty directory.
 func (fs *Local) Remove(name string) error {
-	path := fs.getFullPath(name)
-	if path == "" {
+	rel := fs.relPath(name)
+	if rel == "" {
 		return fmt.Errorf("invalid path: %s", name)
 	}
 
-	if err := os.Remove(path); err != nil {
-		return fmt.Errorf("removing %q: %w", path, err)
+	if err := fs.inRoot(func(root *os.Root) error { return root.Remove(rel) }); err != nil {
+		return fmt.Errorf("removing %q: %w", name, err)
 	}
 	return nil
 }
 
-// getFullPath converts a request path to a full filesystem path.
-// It uses fileutil.SafePath for validation and returns empty string if invalid.
-func (fs *Local) getFullPath(name string) string {
+func (fs *Local) relPath(name string) string {
 	if name == "" {
 		name = "."
 	}
-
-	// Use fileutil.SafePath for validation
-	safeName := fileutil.SafePath(name)
-	if safeName == "" {
-		return ""
-	}
-
-	// Build full path
-	fullPath := filepath.Join(fs.root, safeName)
-
-	// Final safety check: ensure path is within root using filepath.Rel
-	cleanRoot := filepath.Clean(fs.root)
-	cleanPath := filepath.Clean(fullPath)
-	relPath, err := filepath.Rel(cleanRoot, cleanPath)
-	if err != nil || strings.HasPrefix(relPath, "..") || filepath.IsAbs(relPath) {
-		return ""
-	}
-
-	return fullPath
+	return fileutil.SafePath(name)
 }
 
-// verifySymlinkSafety checks if a symlink points outside the root directory.
-func (fs *Local) verifySymlinkSafety(fullPath string) error {
-	info, err := os.Lstat(fullPath)
+func (fs *Local) inRoot(op func(*os.Root) error) error {
+	root, err := os.OpenRoot(fs.root)
 	if err != nil {
-		// File doesn't exist yet, which is fine for operations like Create
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return &internal.APIError{
-			Code:    "FILE_ACCESS_ERROR",
-			Message: "Unable to check file status",
-			Status:  http.StatusInternalServerError,
-		}
+		return err
 	}
-
-	if info.Mode()&os.ModeSymlink != 0 {
-		// Resolve the symlink and ensure it points within the root
-		resolved, err := filepath.EvalSymlinks(fullPath)
-		if err != nil {
-			return &internal.APIError{
-				Code:    "SYMLINK_ERROR",
-				Message: "Unable to resolve symlink",
-				Status:  http.StatusForbidden,
-			}
-		}
-
-		// Clean both paths for consistent comparison
-		resolved = filepath.Clean(resolved)
-		cleanRoot := filepath.Clean(fs.root)
-
-		// Use filepath.Rel to properly verify containment
-		relPath, err := filepath.Rel(cleanRoot, resolved)
-		if err != nil || strings.HasPrefix(relPath, "..") || filepath.IsAbs(relPath) {
-			return &internal.APIError{
-				Code:    "SYMLINK_ATTACK",
-				Message: "Symlink points outside root directory",
-				Status:  http.StatusForbidden,
-			}
-		}
-	}
-
-	return nil
+	defer root.Close()
+	return op(root)
 }
 
 // isHidden checks if a file or directory is hidden.
