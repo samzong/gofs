@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -51,7 +52,7 @@ func main() {
 	}
 
 	if flags.HealthCheck {
-		if err := performHealthCheckAndExit(); err != nil {
+		if err := performHealthCheckAndExit(flags.Host, flags.Port); err != nil {
 			os.Exit(1)
 		}
 		os.Exit(0)
@@ -313,33 +314,28 @@ func logStartupInfo(logger *slog.Logger, cfg *config.Config, authEnabled bool) {
 	logger.LogAttrs(context.Background(), slog.LevelInfo, "Starting gofs server", baseAttrs...)
 }
 
-// performHealthCheck performs a lightweight health check via HTTP
-func performHealthCheck() error {
-	// Default health check endpoint
-	healthURL := "http://127.0.0.1:8000/healthz"
-
-	// Check if custom host/port is configured via environment
-	if host := os.Getenv("GOFS_HOST"); host != "" {
-		port := os.Getenv("GOFS_PORT")
-		if port == "" {
-			port = "8000"
-		}
-		healthURL = fmt.Sprintf("http://%s:%s/healthz", host, port)
+func performHealthCheck(host string, port int) error {
+	if strings.HasPrefix(host, "[") && strings.HasSuffix(host, "]") {
+		host = host[1 : len(host)-1]
 	}
+	switch host {
+	case "", "0.0.0.0":
+		host = "127.0.0.1"
+	case "::":
+		host = "::1"
+	}
+	healthURL := "http://" + net.JoinHostPort(host, strconv.Itoa(port)) + "/healthz"
 
-	// Create HTTP client with timeout
 	client := &http.Client{
 		Timeout: 5 * time.Second,
 	}
 
-	// Perform health check request
 	resp, err := client.Get(healthURL)
 	if err != nil {
 		return fmt.Errorf("health check request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
-	// Check response status
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("health check failed with status: %d", resp.StatusCode)
 	}
@@ -379,8 +375,8 @@ type HealthResult struct {
 	Error     string    `json:"error,omitempty"`
 }
 
-func performHealthCheckAndExit() error {
-	if err := performHealthCheck(); err != nil {
+func performHealthCheckAndExit(host string, port int) error {
+	if err := performHealthCheck(host, port); err != nil {
 		result := HealthResult{
 			Status:    "FAILED",
 			Timestamp: time.Now(),
