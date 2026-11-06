@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net/http"
 	"os"
 	"path"
 	"strings"
@@ -45,10 +46,7 @@ func (w *webDAVAdapter) OpenFile(_ context.Context, name string, flag int, _ os.
 	// Get file info first
 	info, err := w.fs.Stat(cleanPath)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, os.ErrNotExist
-		}
-		return nil, err
+		return nil, webDAVError("stat", name, err)
 	}
 
 	// If it's a directory, return a directory file
@@ -60,19 +58,20 @@ func (w *webDAVAdapter) OpenFile(_ context.Context, name string, flag int, _ os.
 		}, nil
 	}
 
-	// Open regular file for reading
 	reader, err := w.fs.Open(cleanPath)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, os.ErrNotExist
-		}
-		return nil, err
+		return nil, webDAVError("open", name, err)
+	}
+
+	file, ok := reader.(io.ReadSeekCloser)
+	if !ok {
+		_ = reader.Close()
+		return nil, errors.ErrUnsupported
 	}
 
 	return &webDAVFile{
-		ReadCloser: reader,
-		info:       info,
-		path:       cleanPath,
+		ReadSeekCloser: file,
+		info:           info,
 	}, nil
 }
 
@@ -98,31 +97,37 @@ func (w *webDAVAdapter) Stat(_ context.Context, name string) (os.FileInfo, error
 
 	info, err := w.fs.Stat(cleanPath)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, os.ErrNotExist
-		}
-		return nil, err
+		return nil, webDAVError("stat", name, err)
 	}
 
 	return &webDAVFileInfo{FileInfo: info}, nil
 }
 
-// webDAVFile wraps a file for WebDAV access
+func webDAVError(op, name string, err error) error {
+	var apiError *internal.APIError
+	if !errors.As(err, &apiError) {
+		return err
+	}
+	var cause error
+	switch apiError.Status {
+	case http.StatusNotFound:
+		cause = os.ErrNotExist
+	case http.StatusBadRequest, http.StatusForbidden:
+		cause = os.ErrPermission
+	default:
+		return err
+	}
+	return &os.PathError{Op: op, Path: name, Err: cause}
+}
+
 type webDAVFile struct {
-	io.ReadCloser
+	io.ReadSeekCloser
 	info internal.FileInfo
-	path string
 }
 
 // Write implements webdav.File (read-only, returns error)
 func (f *webDAVFile) Write([]byte) (int, error) {
 	return 0, webdav.ErrForbidden
-}
-
-// Seek implements webdav.File
-func (f *webDAVFile) Seek(_ int64, _ int) (int64, error) {
-	// Most read operations don't need seek, return error
-	return 0, errors.New("seek not supported")
 }
 
 // Readdir implements webdav.File (returns error for regular files)
@@ -174,7 +179,7 @@ func (d *webDAVDir) Readdir(count int) ([]os.FileInfo, error) {
 	if d.entries == nil {
 		entries, err := d.adapter.fs.ReadDir(d.path)
 		if err != nil {
-			return nil, err
+			return nil, webDAVError("readdir", d.path, err)
 		}
 
 		d.entries = make([]os.FileInfo, len(entries))
@@ -183,14 +188,11 @@ func (d *webDAVDir) Readdir(count int) ([]os.FileInfo, error) {
 		}
 	}
 
-	// If no entries at all, return empty slice
-	if len(d.entries) == 0 {
-		return []os.FileInfo{}, nil
-	}
-
-	// Check if we've read all entries
 	if d.pos >= len(d.entries) {
-		return nil, io.EOF
+		if count > 0 {
+			return nil, io.EOF
+		}
+		return []os.FileInfo{}, nil
 	}
 
 	// Handle count parameter
