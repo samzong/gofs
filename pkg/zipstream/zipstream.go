@@ -84,6 +84,10 @@ func NewWriter(w io.Writer, opts Options) *Writer {
 }
 
 func (zw *Writer) AddFile(entry FileEntry) error {
+	if entry.Reader != nil {
+		defer entry.Reader.Close()
+	}
+
 	if zw.opts.MaxSize > 0 && zw.written+entry.Info.Size() > zw.opts.MaxSize {
 		return fmt.Errorf("exceeds maximum ZIP size of %d bytes", zw.opts.MaxSize)
 	}
@@ -135,8 +139,8 @@ func (zw *Writer) AddFile(entry FileEntry) error {
 			return fmt.Errorf("open file: %w", err)
 		}
 		reader = file
+		defer file.Close()
 	}
-	defer reader.Close()
 
 	bufPtr := zw.getBuffer()
 	defer zw.putBuffer(bufPtr)
