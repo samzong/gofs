@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"syscall"
@@ -151,7 +152,19 @@ func showHelp() {
 	fmt.Println("Note: Command line flags override environment variables")
 }
 
+func resolvedVersion(readBuildInfo func() (*debug.BuildInfo, bool)) string {
+	if version != "dev" {
+		return version
+	}
+	info, ok := readBuildInfo()
+	if ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
+		return strings.TrimPrefix(info.Main.Version, "v")
+	}
+	return "dev"
+}
+
 func showVersion() {
+	version := resolvedVersion(debug.ReadBuildInfo)
 	if buildTime != "" && buildTime != "unknown" {
 		fmt.Printf("gofs version %s (built at %s)\n", version, buildTime)
 		return

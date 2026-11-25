@@ -14,18 +14,24 @@ jobs:
       security-events: write
     outputs:
       version: ${{ steps.version.outputs.version }}
-      release-created: ${{ steps.release.outputs.release-created }}
+      release-created: ${{ steps.completed.outputs.release-created }}
     steps:
+      - name: Verify SemVer release tag
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION=${GITHUB_REF#refs/tags/}
+          if [[ ! "$VERSION" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(alpha|beta|rc)\.(0|[1-9][0-9]*))?$ ]]; then
+            echo "::error::Invalid SemVer release tag: $VERSION"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Releasing version: $VERSION"
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Extract version
-        id: version
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/}
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Releasing version: $VERSION"
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -70,7 +76,6 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_PAT }}
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
           CGO_ENABLED: 0
@@ -129,12 +134,18 @@ jobs:
       - name: Sign container image with Cosign
         run: |
           cosign sign --yes ghcr.io/${{ github.repository }}:${{ github.ref_name }}
-          cosign sign --yes ghcr.io/${{ github.repository }}:latest
+
+      - name: Sign latest container image with Cosign
+        if: ${{ !contains(github.ref_name, '-') }}
+        run: cosign sign --yes ghcr.io/${{ github.repository }}:latest
 
       - name: Attest SBOM to container image
         run: |
           cosign attest --yes --predicate sbom-source.spdx.json --type spdxjson ghcr.io/${{ github.repository }}:${{ github.ref_name }}
-          cosign attest --yes --predicate sbom-image.spdx.json --type spdxjson ghcr.io/${{ github.repository }}:latest
+
+      - name: Attest SBOM to latest container image
+        if: ${{ !contains(github.ref_name, '-') }}
+        run: cosign attest --yes --predicate sbom-image.spdx.json --type spdxjson ghcr.io/${{ github.repository }}:latest
 
       - name: Upload SBOM artifacts
         uses: actions/upload-artifact@v4
@@ -144,8 +155,8 @@ jobs:
             sbom-source.spdx.json
             sbom-image.spdx.json
 
-      # 关键：通知 release 完成
       - name: Mark release as completed
+        id: completed
         run: |
           echo "✅ Release ${{ steps.version.outputs.version }} completed successfully"
-          echo "release-created=true" >> $GITHUB_OUTPUT
+          echo "release-created=true" >> "$GITHUB_OUTPUT"
